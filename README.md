@@ -1,6 +1,9 @@
 bigly: a pileup library that embraces the huge
 ==============================================
 
+[![Build Status](https://travis-ci.org/brentp/bigly.svg?branch=master)](https://travis-ci.org/brentp/bigly)
+[![GoDoc] (https://godoc.org/github.com/brentp/bigly?status.png)](https://godoc.org/github.com/brentp/bigly)
+
 `bigly` is an API and a command-line app. It is similar to `samtools mpileup` but it reports a *huge* number of
 additional variables that are useful for structural variant calling and visualization.
 
