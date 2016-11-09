@@ -62,9 +62,9 @@ type Pile struct {
 	Splitters1             uint32  // count of non-secondary reads with exactly 1 SA tag.
 	Bases                  []byte  // All bases from reads covering this position
 	Quals                  []uint8 // All quals from reads covering this position
-	MeanInsertSizeLP       uint32  // Calcuated with left-most of pair
-	MeanInsertSizeRM       uint32  // Calcuated with right-most of pair
-	WeirdCount             uint32  // Calcuated with right-most of pair
+	MeanInsertSizeLP       uint32  // Calculated with left-most of pair
+	MeanInsertSizeRM       uint32  // Calculated with right-most of pair
+	WeirdCount             uint32  // Calculated with right-most of pair
 	Discordant             uint32  // Number of reads with insert size > ConcordantCutoff
 	DiscordantChrom        uint32  // Number of reads mapping on different chroms
 	DiscordantChromEntropy float32 // high value means all discordants came from same chrom.
