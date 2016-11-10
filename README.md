@@ -7,7 +7,7 @@ bigly: a pileup library that embraces the huge
 `bigly` is an API and a command-line app ([binaries here](https://github.com/brentp/bigly/releases)). It is similar to `samtools mpileup` but it reports a *huge* number of
 additional variables that are useful for structural variant calling and visualization.
 
-Each for each requested position, the struct below is filled with by the appropriate position in any overlapping
+For each requested position, the struct below is filled by the appropriate position in any overlapping
 alignment that meets the requested filters:
 
 ```Go
