@@ -3,7 +3,6 @@ package bigly
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
@@ -74,33 +73,40 @@ func ParseSAs(s []byte) []*SA {
 // ParseSA returns an SA struct from the bytes
 func ParseSA(sa []byte) SA {
 	// "7,70999871,+,117S83M50S,42,8"
-	parts := bytes.SplitN(sa, []byte{','}, 6)
-	var err error
-	s := SA{Chrom: parts[0], Cigar: parts[3]}
-	s.Pos, err = strconv.Atoi(string(parts[1]))
-	if err != nil {
-		panic(err)
-	}
-	// 0-based
-	s.Pos--
+	//parts := bytes.SplitN(sa, []byte{','}, 6)
+	var s SA
+	off := 0
+	for i := 0; i < 6; i++ {
+		next := off + bytes.Index(sa[off:], []byte{','})
+		if i == 5 && next < off {
+			next = len(sa)
+		}
+		switch i {
+		case 0:
+			s.Chrom = sa[:next]
+		case 1, 4, 5:
+			p, err := strconv.Atoi(string(sa[off:next]))
+			if err != nil {
+				panic(err)
+			}
+			if i == 1 {
+				s.Pos = p - 1
+			} else if i == 4 {
+				s.MapQ = uint8(p)
+			} else {
+				s.NM = uint16(p)
+			}
+		case 3:
+			s.Cigar = sa[off:next]
+		case 2:
+			if sa[off] == '-' {
+				s.Strand = -1
+			} else {
+				s.Strand = 1
+			}
 
-	tmp, err := strconv.Atoi(string(parts[4]))
-	if err != nil {
-		panic(err)
-	}
-	s.MapQ = uint8(tmp)
-
-	tmp, err = strconv.Atoi(string(parts[5]))
-	if err != nil {
-		log.Println("failed on", string(sa))
-		panic(err)
-	}
-	s.NM = uint16(tmp)
-
-	if parts[2][0] == '-' {
-		s.Strand = -1
-	} else {
-		s.Strand = 1
+		}
+		off = 1 + next
 	}
 	return s
 }

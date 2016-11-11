@@ -106,7 +106,7 @@ func (p Pile) TabString(o Options) string {
 	spl := ""
 	if o.SplitterVerbosity > 0 && (len(p.SplitterPositions) > 0 || len(p.SplitterStrings) > 0) {
 		if o.SplitterVerbosity == 1 {
-			m, c := mode(p.SplitterPositions)
+			m, c := Mode(p.SplitterPositions)
 			spl = fmt.Sprintf("%d/%d/%d", m, c, len(p.SplitterPositions))
 		} else {
 			spl = strings.Join(p.SplitterStrings, ",")

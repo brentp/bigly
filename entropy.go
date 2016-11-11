@@ -37,8 +37,8 @@ func entropy(i []int) float64 {
 	return -s / math.Log(float64(k+1))
 }
 
-// mode returns the most frequent value and the count of times it was seen.
-func mode(a []int) (int, int) {
+// Mode returns the most frequent value and the count of times it was seen.
+func Mode(a []int) (int, int) {
 	if len(a) < 1 {
 		return 0, 0
 	}
