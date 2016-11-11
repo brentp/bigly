@@ -189,18 +189,18 @@ func (p *Pile) Update(o Options, alns []*Align) {
 					p.WeirdCount++
 				}
 			}
-			if a.Flags&sam.Secondary == 0 {
-				if tags, ok := a.Record.Tag([]byte{'S', 'A'}); ok {
-					p.Splitters++
-					// TODO: entropy for position of splitters. should be large for good hit.
-					if bytes.Count([]byte(tags), []byte{';'}) <= 1 {
-						p.Splitters1++
-					}
 
-					p.updateSplitters(o, tags)
+		}
+		if a.Flags&sam.Secondary == 0 {
+			if tags, ok := a.Record.Tag([]byte{'S', 'A'}); ok {
+				p.Splitters++
+				// TODO: entropy for position of splitters. should be large for good hit.
+				if bytes.Count([]byte(tags), []byte{';'}) <= 1 {
+					p.Splitters1++
 				}
-			}
 
+				p.updateSplitters(o, tags)
+			}
 		}
 
 		p.Depth++
