@@ -68,6 +68,14 @@ func (b *BamAt) Query(chrom string, start int, end int) (*bam.Iterator, error) {
 
 // Close closes the underlying file and the Bam.Reader
 func (b *BamAt) Close() error {
-	b.Reader.Close()
-	return b.fh.Close()
+	if b == nil {
+		return nil
+	}
+	if b.Reader != nil {
+		b.Reader.Close()
+	}
+	if b.fh != nil {
+		return b.fh.Close()
+	}
+	return nil
 }

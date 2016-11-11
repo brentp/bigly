@@ -185,5 +185,8 @@ func (it *Iterator) Pile() *Pile { return it.pile }
 func (it *Iterator) Close() error {
 	it.bamat.Close()
 	it.cache = it.cache[:0]
-	return it.bit.Close()
+	if it.bit != nil {
+		return it.bit.Close()
+	}
+	return nil
 }

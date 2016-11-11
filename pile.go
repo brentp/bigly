@@ -272,6 +272,7 @@ func (p *Pile) Update(o Options, alns []*Align) {
 	}
 }
 
+// depending on the options, we track the actual positions of the splitters.
 func (p *Pile) updateSplitters(o Options, tags []byte) {
 	if o.SplitterVerbosity == 0 {
 		return
