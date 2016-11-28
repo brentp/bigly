@@ -166,8 +166,9 @@ function updatePlot(json, id) {
 	ds[2].pointRadius = 0
 	ds[3].pointRadius = 0
 	for(i=0;i<4;i++){
-		ds[i].lineTension = 0
+        json.options.scales.yAxes[i].scaleLabel.fontColor = COLORS[i];
 		ds[i].spanGaps = false
+		ds[i].lineTension = 0
 	}
 
     var ctx = document.getElementById(id).getContext("2d");

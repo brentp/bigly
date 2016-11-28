@@ -78,19 +78,20 @@ type ifill struct {
 	BamPath []string
 	Regions []string
 	// contains, e.. 0/1, 0/0, from the VCF for the genotype of each sample.
-	Genotype []string
+	Genotypes [][]string
 }
 
-func getRegions(cli cliarg) []string {
+func getRegions(cli cliarg) ([]string, [][]string) {
 	if cli.VCF == "" {
-		return []string{}
+		return []string{}, nil
 	}
+	genotypes := make([][]string, 0, 20)
 	m := make([]string, 0, 20)
 	rdr, err := xopen.Ropen(cli.VCF)
 	if err != nil {
 		panic(err)
 	}
-	vcf, err := vcfgo.NewReader(rdr, true)
+	vcf, err := vcfgo.NewReader(rdr, false)
 	defer rdr.Close()
 	if err != nil {
 		panic(err)
@@ -103,13 +104,21 @@ func getRegions(cli cliarg) []string {
 		}
 		ex := uint32(float64(rec.End()-rec.Start()) / 5.0)
 		m = append(m, fmt.Sprintf("%s:%d-%d", rec.Chrom(), rec.Start()-ex, rec.End()+ex))
+
+		gts := make([]string, 0, len(rec.Samples))
+		for _, s := range rec.Samples {
+			gts = append(gts, s.Fields["GT"])
+		}
+		genotypes = append(genotypes, gts)
+
 	}
 	if e := vcf.Error(); e != nil {
 		fmt.Fprintln(os.Stderr, e.Error())
 	}
-	return m
+	return m, genotypes
 }
 
+// TODO: how to map between sample names in VCF and bam files.
 func (cli cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	t, err := template.ParseFiles("templates/chartjs.tmpl")
 	if err != nil {
@@ -120,7 +129,8 @@ func (cli cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	for i, p := range cli.BamPath {
 		paths[i] = getShortName(p)
 	}
-	if err = t.Execute(w, ifill{BamPath: paths, Regions: getRegions(cli)}); err != nil {
+	regs, gts := getRegions(cli)
+	if err = t.Execute(w, ifill{BamPath: paths, Regions: regs, Genotypes: gts}); err != nil {
 		log.Fatal(err)
 	}
 	wtr, _ := xopen.Wopen("index.html")
@@ -252,24 +262,28 @@ func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func writeChart(w io.Writer, tf tfill) error {
 	chart := chartjs.Chart{Label: "bigly-chart"}
-	left1, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Left, Display: chartjs.True})
+	right2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right,
+		ScaleLabel: &chartjs.ScaleLabel{LabelString: "splitters", Display: chartjs.True}})
 	if err != nil {
 		return err
 	}
-	left2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Left, Display: chartjs.True})
+	right1, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right,
+		ScaleLabel: &chartjs.ScaleLabel{LabelString: "soft-clips", Display: chartjs.True}})
 	if err != nil {
 		return err
 	}
-	right1, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right, Display: chartjs.True})
+	left2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Left,
+		ScaleLabel: &chartjs.ScaleLabel{LabelString: "insert-size", Display: chartjs.True}})
 	if err != nil {
 		return err
 	}
-	right2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right, Display: chartjs.True})
+	left1, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Left,
+		ScaleLabel: &chartjs.ScaleLabel{LabelString: "depth", Display: chartjs.True}})
 	if err != nil {
 		return err
 	}
 
-	if _, err = chart.AddXAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Bottom, Display: chartjs.True}); err != nil {
+	if _, err = chart.AddXAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Bottom, Display: chartjs.True, ScaleLabel: &chartjs.ScaleLabel{LabelString: "genomic position", Display: chartjs.True}}); err != nil {
 		return err
 	}
 
