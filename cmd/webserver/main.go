@@ -77,6 +77,8 @@ func parseRegion(region string) (chrom string, start, end int, err error) {
 type ifill struct {
 	BamPath []string
 	Regions []string
+	// contains, e.. 0/1, 0/0, from the VCF for the genotype of each sample.
+	Genotype []string
 }
 
 func getRegions(cli cliarg) []string {

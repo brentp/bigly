@@ -60,9 +60,10 @@ div#region_links {
 
         <div class="container" id="parent">
 			{{ range $idx, $path := .BamPath }}
-				<div class="canvas_div">
+                <div>
+                <label for="{{$path}}">{{$path}}</label>
 					<canvas id="{{$path}}" height="220" ></canvas>
-				</div>
+                </div>
 			{{end}}
         </div>
     </body>
