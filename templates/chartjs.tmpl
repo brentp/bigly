@@ -92,6 +92,9 @@ jQuery('#region').on('change', function() {
     jQuery('#parent canvas').each(function(i, div) {
         var div = div;
         jQuery.getJSON("/data/" + div.id + "/" + reg.val(), function(json) {
+            if(i != 0){
+                json.options.legend = {display: false}
+            }
             updatePlot(json, div.id);
         }).fail(function(e) {
             console.log(e)
@@ -142,7 +145,7 @@ jQuery('body').on('keyup', function(e) {
 
 var COLORS = ["#ffffff","#f0f0f0","#d9d9d9","#bdbdbd","#969696","#737373","#525252","#252525","#000000"]
 var COLORS = ['#33cc33', '#ffff66', '#4d79ff', '#ddd']
-var COLORS = ['#00264d', '#666699', '#4d79ff', '#ddd']
+var COLORS = ['#00264d', '#b300b3', '#4d79ff', '#ddd']
 Chart.defaults.global.legend.usePointStyle = true
 Chart.defaults.line.cubicInterpolationMode = 'monotone'
 
@@ -150,8 +153,8 @@ function updatePlot(json, id) {
 	var ds = json.data.datasets;
 	ds[0].borderColor = COLORS[0];
 	ds[1].borderColor = COLORS[1];
-	ds[0].backgroundColor = COLORS[0];
-	ds[1].backgroundColor = COLORS[1];
+	ds[0].backgroundColor = 'white';
+	ds[1].backgroundColor = 'white';
 
 	ds[2].borderColor = COLORS[2];
 	ds[2].backgroundColor = COLORS[2];
@@ -159,14 +162,24 @@ function updatePlot(json, id) {
 	ds[0].fill = false
 	ds[1].fill = false
 	ds[2].fill = false
-	ds[0].showLine = false
-	ds[1].showLine = false
-	ds[0].pointRadius = 5
-	ds[1].pointRadius = 5
+	ds[0].showLine = true
+	ds[1].showLine = true
+	ds[0].pointRadius = 7
+	ds[0].borderWidth = 3
+
+	ds[1].pointRadius = 7
+	ds[1].borderWidth = 3
+
 	ds[2].pointRadius = 0
 	ds[3].pointRadius = 0
 	for(i=0;i<4;i++){
-        json.options.scales.yAxes[i].scaleLabel.fontColor = COLORS[i];
+        //json.options.scales.yAxes[i].scaleLabel.fontColor = COLORS[i];
+        json.options.scales.yAxes[i].ticks = {fontColor: COLORS[i]}
+        if(i < 3){
+            json.options.scales.yAxes[i].gridLines = {display: false}
+        }
+            json.options.scales.yAxes[i].legend = {display: false}
+
 		ds[i].spanGaps = false
 		ds[i].lineTension = 0
 	}

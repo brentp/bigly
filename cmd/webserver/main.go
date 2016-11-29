@@ -7,8 +7,10 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -215,7 +217,12 @@ func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if p.SoftStarts > 1 || p.SoftEnds > 1 {
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
+			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
+			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
+
+			tf.Softs.y = append(tf.Softs.y, 0)
 			tf.Softs.y = append(tf.Softs.y, float64(p.SoftStarts+p.SoftEnds))
+			tf.Softs.y = append(tf.Softs.y, math.NaN())
 		}
 		if p.Splitters > 1 {
 			m, c := bigly.Mode(p.SplitterPositions)
@@ -237,15 +244,32 @@ func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	max := 1
-	for _, v := range splits {
+	sites := make([]int, 0, len(splits))
+	for pos, v := range splits {
+		sites = append(sites, pos)
 		if v > max {
 			max = v
 		}
 	}
+	sort.Ints(sites)
 
-	for k, v := range splits {
-		tf.Splitters.x = append(tf.Splitters.x, float64(k))
+	for k, pos := range sites {
+		v := splits[pos]
+		if k == 0 {
+			tf.Splitters.x = append(tf.Splitters.x, float64(pos)-1)
+			tf.Splitters.y = append(tf.Splitters.y, 0)
+		} else if float64(pos)-tf.Splitters.x[k-1] > 1 {
+			tf.Splitters.x = append(tf.Splitters.x, tf.Splitters.x[len(tf.Splitters.x)-1])
+			tf.Splitters.y = append(tf.Splitters.y, 0)
+			tf.Splitters.x = append(tf.Splitters.x, float64(pos)-1)
+			tf.Splitters.y = append(tf.Splitters.y, math.NaN())
+		}
+		tf.Splitters.x = append(tf.Splitters.x, float64(pos))
 		tf.Splitters.y = append(tf.Splitters.y, toPct(float64(v), float64(max)))
+	}
+	if len(sites) > 1 {
+		tf.Splitters.x = append(tf.Splitters.x, tf.Splitters.x[len(tf.Splitters.x)-1]+1)
+		tf.Splitters.y = append(tf.Splitters.y, math.NaN())
 	}
 
 	if err := it.Error(); err != nil {
@@ -262,23 +286,19 @@ func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func writeChart(w io.Writer, tf tfill) error {
 	chart := chartjs.Chart{Label: "bigly-chart"}
-	right2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right,
-		ScaleLabel: &chartjs.ScaleLabel{LabelString: "splitters", Display: chartjs.True}})
+	right2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right})
 	if err != nil {
 		return err
 	}
-	right1, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right,
-		ScaleLabel: &chartjs.ScaleLabel{LabelString: "soft-clips", Display: chartjs.True}})
+	right1, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right})
 	if err != nil {
 		return err
 	}
-	left2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Left,
-		ScaleLabel: &chartjs.ScaleLabel{LabelString: "insert-size", Display: chartjs.True}})
+	left2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Log, Position: chartjs.Left})
 	if err != nil {
 		return err
 	}
-	left1, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Left,
-		ScaleLabel: &chartjs.ScaleLabel{LabelString: "depth", Display: chartjs.True}})
+	left1, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Left})
 	if err != nil {
 		return err
 	}
@@ -305,16 +325,16 @@ func writeChart(w io.Writer, tf tfill) error {
 	chart.Options.Responsive = chartjs.True
 	chart.Options.MaintainAspectRatio = chartjs.False
 
-	gz := gzip.NewWriter(w)
 	buf, err := json.Marshal(chart)
 	if err != nil {
 		return err
 	}
+	gz := gzip.NewWriter(w)
+	defer gz.Close()
 	_, err = gz.Write(buf)
 	if err != nil {
 		return err
 	}
-	gz.Close()
 
 	return nil
 }
