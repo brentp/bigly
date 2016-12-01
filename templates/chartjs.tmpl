@@ -50,8 +50,10 @@ div#region_links {
 		<input id="region" type="text" value="7:71211015-71213751"/>
 
 		<label>Use left/right arrow keys to pan and +/- to zoom.</label>
-
+        <p>
 		<span id="errors"></span>
+        </p>
+
 		<div id="region_links">
 			{{ range $idx, $reg := .Regions }}
 				<a href="javascript:void(0)" onclick="setRegion.call(this)">{{ $reg }}</a><br/>
@@ -59,10 +61,10 @@ div#region_links {
 		</div>
 
         <div class="container" id="parent">
-			{{ range $idx, $path := .BamPath }}
+			{{ range $sm, $path := .BamPath }}
                 <div>
-                <label for="{{$path}}">{{$path}}</label>
-					<canvas id="{{$path}}" height="220" ></canvas>
+                    <label for="{{$sm}}">{{$sm}}</label> <span id="sm_{{$sm}}"></span>
+					<canvas id="{{$sm}}" height="220" ></canvas>
                 </div>
 			{{end}}
         </div>
@@ -91,14 +93,17 @@ jQuery('#region').on('change', function() {
     var reg = $(this)
     jQuery('#parent canvas').each(function(i, div) {
         var div = div;
-        jQuery.getJSON("/data/" + div.id + "/" + reg.val(), function(json) {
+        jQuery('#errors').html(""); // TODO this hides errors from other samples.
+        jQuery.getJSON("data/" + div.id + "/" + reg.val(), function(json) {
             if(i != 0){
-                json.options.legend = {display: false}
+                json.chart.options.legend = {display: false}
             }
-            updatePlot(json, div.id);
+            updatePlot(json.chart, div.id);
+            jQuery('#sm_' + div.id).html(json.gt)
+            console.log(json.gt)
         }).fail(function(e) {
-            console.log(e)
-            $('#errors').html("error getting json for " + div.id )
+            console.log(e.error(), div.id)
+            jQuery('#errors').html("error getting json for " + div.id )
         })
             
     })

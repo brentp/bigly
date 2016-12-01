@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	arg "github.com/alexflint/go-arg"
+	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
 	"github.com/brentp/bigly"
 	"github.com/brentp/faidx"
@@ -30,6 +31,11 @@ type cliarg struct {
 	BamPath   []string     `arg:"positional,required"`
 	ref       *faidx.Faidx `arg:"-"`
 	Port      int          `arg:"-p,help:server port"`
+	// maps from sample id to bam path.
+	paths map[string]string `arg:"-"`
+
+	// keyed by region, then by sample.
+	Genotypes map[string]map[string]string `arg:"-"`
 }
 
 // satisfy the required interface with this struct and methods.
@@ -54,9 +60,28 @@ func (c cliarg) Version() string {
 }
 
 func getShortName(b string) string {
-	rgs := strings.Split(b, "/")
-	rg := rgs[len(rgs)-1]
-	return rg
+
+	fh, err := os.Open(b)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fh.Close()
+	br, err := bam.NewReader(fh, 2)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer br.Close()
+	m := make(map[string]bool)
+	for _, rg := range br.Header().RGs() {
+		m[rg.Get(sam.Tag([2]byte{'S', 'M'}))] = true
+	}
+	if len(m) > 1 {
+		log.Println("warning: more than one tag for %s", b)
+	}
+	for sm := range m {
+		return sm
+	}
+	return ""
 }
 
 func parseRegion(region string) (chrom string, start, end int, err error) {
@@ -77,17 +102,17 @@ func parseRegion(region string) (chrom string, start, end int, err error) {
 }
 
 type ifill struct {
-	BamPath []string
+	BamPath map[string]string
 	Regions []string
 	// contains, e.. 0/1, 0/0, from the VCF for the genotype of each sample.
-	Genotypes [][]string
 }
 
-func getRegions(cli cliarg) ([]string, [][]string) {
+func getRegions(cli *cliarg) ([]string, map[string]map[string]string) {
 	if cli.VCF == "" {
 		return []string{}, nil
 	}
-	genotypes := make([][]string, 0, 20)
+	// genotypes are keyed by region, then by sample.
+	genotypes := make(map[string]map[string]string, 20)
 	m := make([]string, 0, 20)
 	rdr, err := xopen.Ropen(cli.VCF)
 	if err != nil {
@@ -99,6 +124,7 @@ func getRegions(cli cliarg) ([]string, [][]string) {
 		panic(err)
 	}
 	defer vcf.Close()
+	samples := vcf.Header.SampleNames
 	for {
 		rec := vcf.Read()
 		if rec == nil {
@@ -107,12 +133,11 @@ func getRegions(cli cliarg) ([]string, [][]string) {
 		ex := uint32(float64(rec.End()-rec.Start()) / 5.0)
 		m = append(m, fmt.Sprintf("%s:%d-%d", rec.Chrom(), rec.Start()-ex, rec.End()+ex))
 
-		gts := make([]string, 0, len(rec.Samples))
-		for _, s := range rec.Samples {
-			gts = append(gts, s.Fields["GT"])
+		gts := make(map[string]string, len(rec.Samples))
+		for i, s := range rec.Samples {
+			gts[samples[i]] = s.Fields["GT"]
 		}
-		genotypes = append(genotypes, gts)
-
+		genotypes[fmt.Sprintf("%s:%d-%d", rec.Chrom(), rec.Start()-ex, rec.End()+ex)] = gts
 	}
 	if e := vcf.Error(); e != nil {
 		fmt.Fprintln(os.Stderr, e.Error())
@@ -120,19 +145,19 @@ func getRegions(cli cliarg) ([]string, [][]string) {
 	return m, genotypes
 }
 
-// TODO: how to map between sample names in VCF and bam files.
-func (cli cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
+func (cli *cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	t, err := template.ParseFiles("templates/chartjs.tmpl")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		log.Fatal(err)
 	}
-	paths := make([]string, len(cli.BamPath))
-	for i, p := range cli.BamPath {
-		paths[i] = getShortName(p)
+	cli.paths = make(map[string]string, len(cli.BamPath))
+	for _, p := range cli.BamPath {
+		cli.paths[getShortName(p)] = p
 	}
 	regs, gts := getRegions(cli)
-	if err = t.Execute(w, ifill{BamPath: paths, Regions: regs, Genotypes: gts}); err != nil {
+	cli.Genotypes = gts
+	if err = t.Execute(w, ifill{BamPath: cli.paths, Regions: regs}); err != nil {
 		log.Fatal(err)
 	}
 	wtr, _ := xopen.Wopen("index.html")
@@ -140,20 +165,13 @@ func (cli cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	wtr.Close()
 }
 
-func getBamPath(cli cliarg, name string) string {
-	for _, p := range cli.BamPath {
-		if getShortName(p) == name {
-			return p
-		}
-	}
-	return ""
-}
-
 type tfill struct {
 	Depths    xy
 	Splitters xy
 	Inserts   xy
 	Softs     xy
+
+	gts map[string]string
 }
 
 func abs(p float64) float64 {
@@ -174,21 +192,14 @@ func toPct(a, depth float64) float64 {
 	return 100.0 * float64(a) / float64(depth)
 }
 
-func mustMarshal(v []xy) string {
-	s, e := json.Marshal(v)
-	if e != nil {
-		panic(e)
-	}
-	return string(s)
-}
-
-func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Encoding", "gzip")
 	po := strings.Split(strings.TrimSpace(r.URL.Path[len("/data/"):]), "/")
 	if len(po) != 2 {
 		http.Error(w, fmt.Sprintf("expected a path like {bam}/{chrom}:{start}-{end}. Got %s", r.URL.Path[1:]), http.StatusInternalServerError)
 		fmt.Fprintln(os.Stderr, fmt.Sprintf("expected a path like {bam}/{chrom}:{start}-{end}. Got %s", r.URL.Path[1:]))
+		fmt.Fprintln(os.Stderr, fmt.Sprintf("Got %v\n", po))
 		return
 	}
 	name, region := po[0], po[1]
@@ -200,10 +211,17 @@ func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bamPath := getBamPath(cli, name)
+	bamPath := cli.paths[name]
+
+	gts, ok := cli.Genotypes[region]
+	var gt string
+	if ok {
+		gt = gts[name]
+	}
 
 	it := bigly.Up(bamPath, cli.Options, bigly.Position{chrom, start, end}, cli.ref)
-	tf := tfill{xy{}, xy{}, xy{}, xy{}}
+	tf := tfill{Depths: xy{}, Splitters: xy{}, Inserts: xy{}, Softs: xy{}}
+	tf.gts = gts
 	splits := make(map[int]int)
 	for it.Next() {
 		p := it.Pile()
@@ -215,6 +233,7 @@ func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tf.Depths.y = append(tf.Depths.y, float64(p.Depth))
 			tf.Depths.x = append(tf.Depths.x, float64(p.Pos))
 		}
+
 		if p.SoftStarts > 1 || p.SoftEnds > 1 {
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
@@ -226,7 +245,7 @@ func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if p.Splitters > 1 {
 			m, c := bigly.Mode(p.SplitterPositions)
-			if c > 1 {
+			if c > 1 && m+100 > start && m-100 < end {
 				if _, ok := splits[m]; !ok {
 					splits[m] = 0
 				}
@@ -278,13 +297,13 @@ func (cli cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	it.Close()
-	if err := writeChart(w, tf); err != nil {
+	if err := writeChart(w, tf, gt); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println(err)
 	}
 }
 
-func writeChart(w io.Writer, tf tfill) error {
+func writeChart(w io.Writer, tf tfill, gt string) error {
 	chart := chartjs.Chart{Label: "bigly-chart"}
 	right2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right})
 	if err != nil {
@@ -325,13 +344,16 @@ func writeChart(w io.Writer, tf tfill) error {
 	chart.Options.Responsive = chartjs.True
 	chart.Options.MaintainAspectRatio = chartjs.False
 
-	buf, err := json.Marshal(chart)
+	buf, err := json.MarshalIndent(chart, "\n", "  ")
 	if err != nil {
 		return err
 	}
+
+	json := fmt.Sprintf(`{"chart": %s, "gt": "%s"}`, string(buf), gt)
+
 	gz := gzip.NewWriter(w)
 	defer gz.Close()
-	_, err = gz.Write(buf)
+	_, err = gz.Write([]byte(json))
 	if err != nil {
 		return err
 	}
