@@ -20,3 +20,13 @@ func (t *EntropyTest) TestEven(c *C) {
 	*/
 
 }
+
+func (t *EntropyTest) TestMode(c *C) {
+	m, cnt := Mode([]int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1})
+	c.Assert(m, Equals, 1)
+	c.Assert(cnt, Equals, 13)
+
+	m, cnt = Mode([]int{0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1})
+	c.Assert(m, Equals, 1)
+	c.Assert(cnt, Equals, 8)
+}
