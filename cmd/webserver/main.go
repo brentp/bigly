@@ -24,6 +24,8 @@ import (
 	"github.com/brentp/xopen"
 )
 
+var MaxRegion int = 1e7
+
 type cliarg struct {
 	bigly.Options
 	Reference string       `arg:"-r,help:optional path to reference fasta."`
@@ -90,11 +92,11 @@ func parseRegion(region string) (chrom string, start, end int, err error) {
 		return "", 0, 0, fmt.Errorf("expected a region like {chrom}:{start}-{end}. Got %s", region)
 	}
 	se := strings.Split(chromse[1], "-")
-	start, err = strconv.Atoi(se[0])
+	start, err = strconv.Atoi(strings.Replace(se[0], ",", "", -1))
 	if err != nil {
 		return "", 0, 0, fmt.Errorf("unable to parse region %s", region)
 	}
-	end, err = strconv.Atoi(se[1])
+	end, err = strconv.Atoi(strings.Replace(se[1], ",", "", -1))
 	if err != nil {
 		return "", 0, 0, fmt.Errorf("unable to parse region %s", region)
 	}
@@ -211,8 +213,12 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, region := po[0], po[1]
+	log.Println("got request:", name, region)
 
 	chrom, start, end, err := parseRegion(region)
+	if end-start > MaxRegion {
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		fmt.Fprintln(os.Stderr, err.Error())
@@ -306,14 +312,15 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	it.Close()
-	if err := writeChart(w, tf, gt); err != nil {
+	if err := writeChart(w, tf, gt, start, end); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println(err)
 	}
 }
 
-func writeChart(w io.Writer, tf tfill, gt string) error {
+func writeChart(w io.Writer, tf tfill, gt string, start, end int) error {
 	chart := chartjs.Chart{Label: "bigly-chart"}
+	xtick := &chartjs.Tick{Min: float64(start), Max: float64(end)}
 	right2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right})
 	if err != nil {
 		return err
@@ -331,7 +338,7 @@ func writeChart(w io.Writer, tf tfill, gt string) error {
 		return err
 	}
 
-	if _, err = chart.AddXAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Bottom, Display: chartjs.True, ScaleLabel: &chartjs.ScaleLabel{LabelString: "genomic position", Display: chartjs.True}}); err != nil {
+	if _, err = chart.AddXAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Bottom, Display: chartjs.True, ScaleLabel: &chartjs.ScaleLabel{LabelString: "genomic position", Display: chartjs.True}, Tick: xtick}); err != nil {
 		return err
 	}
 
@@ -353,7 +360,8 @@ func writeChart(w io.Writer, tf tfill, gt string) error {
 	chart.Options.Responsive = chartjs.True
 	chart.Options.MaintainAspectRatio = chartjs.False
 
-	buf, err := json.MarshalIndent(chart, "\n", "  ")
+	//buf, err := json.MarshalIndent(chart, "\n", "  ")
+	buf, err := json.Marshal(chart)
 	if err != nil {
 		return err
 	}

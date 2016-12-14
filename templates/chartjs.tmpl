@@ -40,7 +40,7 @@ body {
         <div class="container" id="parent">
 
                        {{ range $sm, $path := .BamPath }}
-                <div>
+                <div style="height:220px">
                     <label for="{{$sm}}">{{$sm}}</label> <span id="sm_{{$sm}}"></span>
                                        <canvas id="{{$sm}}" height="220" ></canvas>
                 </div>
@@ -52,11 +52,11 @@ body {
 var plots = {}
 
 jQuery('body').on('keyup', function(e) {
-	reg = cleanregion(jQuery('.igvNavigationSearchInput').val())
 
 	if (e.keyCode != 37 && e.keyCode != 39 && e.keyCode != 189 && e.keyCode != 187) {
 		return false;
 	}
+	reg = cleanregion(jQuery('.igvNavigationSearchInput').val())
 	var match = /([^:]+):([^-]+)-(.*)/.exec(reg);
 	var left = e.keyCode == 37
     var zoom = e.keyCode > 100
@@ -82,7 +82,9 @@ jQuery('body').on('keyup', function(e) {
 			match[3] = tmp;
 		}
 	}
-	jQuery('.igvNavigationSearchInput').val(match[1] + ":" + parseInt(match[2]) + "-" + parseInt(match[3])).trigger('change')
+	var reg = match[1] + ":" + parseInt(match[2]) + "-" + parseInt(match[3]);
+	jQuery('.igvNavigationSearchInput').val(reg)
+	browser.fireEvent('locuschange', [null, reg]);
 	return false;
 })
 
@@ -135,12 +137,15 @@ function updatePlot(json, id) {
 
 }
 
-  jQuery(document).ready(function () {
+var browser;
+
+jQuery(document).ready(function () {
 
         var div = jQuery("#igvDiv")[0],
                 options = {
                     showNavigation: true,
                     showRuler: true,
+					showKaryo: true,
                     locus: "{{ .Region }}",
                     reference: {
                         id: "hg19"
@@ -156,46 +161,57 @@ function updatePlot(json, id) {
                             order: Number.MAX_VALUE,
                             visibilityWindow: 300000000,
                             displayMode: "COLLAPSED"
+                        }, {
+                            name: "SegDups",
+                            type: "annotation",
+                            format: "bed",
+                            sourceType: "file",
+                            url: "http://potter.genetics.utah.edu/served/segdups.bed.gz",
+                            indexURL: "http://potter.genetics.utah.edu/served/segdups.bed.gz.tbi",
+                            order: Number.MAX_VALUE,
+                            visibilityWindow: 300000000,
+                            displayMode: "COLLAPSED",
+							height: 50,
+							autoheight: false,
                         }
+													
                     ]
                 };
 
-        igv.createBrowser(div, options);
-		jQuery('.igvNavigationSearchInput').trigger('change')
-
+        browser = igv.createBrowser(div, options);
+		browser.on('locuschange', updateSVPlots);
     });
 
+
+function updateSVPlots(_, region) {
+	var region = cleanregion(region)
+	if(region ==  "1:1-249250621"){ return }
+
+	jQuery('#parent canvas').each(function(i, div) {
+		var div = div;
+		jQuery.getJSON("data/" + div.id + "/" + region, function(json) {
+			jQuery('#errors').html(""); // TODO this hides errors from other samples.
+			if(i != 0){
+				json.chart.options.legend = {display: false}
+			}
+			updatePlot(json.chart, div.id);
+			jQuery('#sm_' + div.id).html(json.gt)
+			console.log(json.gt)
+		}).fail(function(e) {
+			console.log(e.error(), div.id)
+			if(plots[div.id] !== undefined) {
+				plots[div.id].destroy()
+			}
+			jQuery('#errors').html("error getting json for " + div.id )
+
+		})
+			
+	})
+}
 
 function cleanregion(reg) {
     return reg.replace(/,/g, "").replace(/^chr/, "");
 }
-
-jQuery(document).ready(function(){
-
-
-jQuery('.igvNavigationSearchInput').on('change', function() {
-    var region = cleanregion($(this).val());
-
-    jQuery('#parent canvas').each(function(i, div) {
-        var div = div;
-        jQuery('#errors').html(""); // TODO this hides errors from other samples.
-		console.log("getting: ", "data/" + div.id + "/" + region)
-        jQuery.getJSON("data/" + div.id + "/" + region, function(json) {
-            if(i != 0){
-                json.chart.options.legend = {display: false}
-            }
-            updatePlot(json.chart, div.id);
-            jQuery('#sm_' + div.id).html(json.gt)
-            console.log(json.gt)
-        }).fail(function(e) {
-            console.log(e.error(), div.id)
-            jQuery('#errors').html("error getting json for " + div.id )
-        })
-            
-    })
-})
-
-})
 
 </script>
 </body>
