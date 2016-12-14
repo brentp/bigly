@@ -104,7 +104,7 @@ func parseRegion(region string) (chrom string, start, end int, err error) {
 type ifill struct {
 	BamPath map[string]string
 	Regions []string
-	// contains, e.. 0/1, 0/0, from the VCF for the genotype of each sample.
+	Region  string
 }
 
 func getRegions(cli *cliarg) ([]string, map[string]map[string]string) {
@@ -145,6 +145,13 @@ func getRegions(cli *cliarg) ([]string, map[string]map[string]string) {
 	return m, genotypes
 }
 
+func getRegion(region string) string {
+	if region == "" {
+		region = "7:71211015-71213751"
+	}
+	return region
+}
+
 func (cli *cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	t, err := template.ParseFiles("templates/chartjs.tmpl")
 	if err != nil {
@@ -157,7 +164,8 @@ func (cli *cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	regs, gts := getRegions(cli)
 	cli.Genotypes = gts
-	if err = t.Execute(w, ifill{BamPath: cli.paths, Regions: regs}); err != nil {
+
+	if err = t.Execute(w, ifill{BamPath: cli.paths, Regions: regs, Region: getRegion(r.FormValue("region"))}); err != nil {
 		log.Fatal(err)
 	}
 	wtr, _ := xopen.Wopen("index.html")
@@ -243,6 +251,7 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tf.Softs.y = append(tf.Softs.y, float64(p.SoftStarts+p.SoftEnds))
 			tf.Softs.y = append(tf.Softs.y, math.NaN())
 		}
+
 		if p.Splitters > 1 {
 			m, c := bigly.Mode(p.SplitterPositions)
 			if c > 1 && m+100 > start && m-100 < end {
