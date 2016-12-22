@@ -20,7 +20,6 @@ import (
 	"github.com/brentp/bigly"
 	"github.com/brentp/faidx"
 	chartjs "github.com/brentp/go-chartjs"
-	"github.com/brentp/vcfgo"
 	"github.com/brentp/xopen"
 )
 
@@ -30,12 +29,14 @@ var MaxRegion int = 1e7
 // each position in order to be plotted. Higher values remove
 // noise.
 // TODO: make this a cliarg parameter.
-const MinSoftClips = 4
+const MinSoftClips = 5
+
+// MinSoftClipProportion determines the proporition of reads that must be soft clipped in order to by shown.
+const MinSoftClipProportion = 0.1
 
 type cliarg struct {
 	bigly.Options
 	Reference string       `arg:"-r,help:optional path to reference fasta."`
-	VCF       string       `arg:"-v,help:optional vcf with variants to examine."`
 	BamPath   []string     `arg:"positional,required"`
 	ref       *faidx.Faidx `arg:"-"`
 	Port      int          `arg:"-p,help:server port"`
@@ -115,44 +116,6 @@ type ifill struct {
 	Region  string
 }
 
-func getRegions(cli *cliarg) ([]string, map[string]map[string]string) {
-	if cli.VCF == "" {
-		return []string{}, nil
-	}
-	// genotypes are keyed by region, then by sample.
-	genotypes := make(map[string]map[string]string, 20)
-	m := make([]string, 0, 20)
-	rdr, err := xopen.Ropen(cli.VCF)
-	if err != nil {
-		panic(err)
-	}
-	vcf, err := vcfgo.NewReader(rdr, false)
-	defer rdr.Close()
-	if err != nil {
-		panic(err)
-	}
-	defer vcf.Close()
-	samples := vcf.Header.SampleNames
-	for {
-		rec := vcf.Read()
-		if rec == nil {
-			break
-		}
-		ex := uint32(float64(rec.End()-rec.Start()) / 5.0)
-		m = append(m, fmt.Sprintf("%s:%d-%d", rec.Chrom(), rec.Start()-ex, rec.End()+ex))
-
-		gts := make(map[string]string, len(rec.Samples))
-		for i, s := range rec.Samples {
-			gts[samples[i]] = s.Fields["GT"]
-		}
-		genotypes[fmt.Sprintf("%s:%d-%d", rec.Chrom(), rec.Start()-ex, rec.End()+ex)] = gts
-	}
-	if e := vcf.Error(); e != nil {
-		fmt.Fprintln(os.Stderr, e.Error())
-	}
-	return m, genotypes
-}
-
 func getRegion(region string) string {
 	if region == "" {
 		region = "7:71211015-71213751"
@@ -170,10 +133,7 @@ func (cli *cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	for _, p := range cli.BamPath {
 		cli.paths[getShortName(p)] = p
 	}
-	regs, gts := getRegions(cli)
-	cli.Genotypes = gts
-
-	if err = t.Execute(w, ifill{BamPath: cli.paths, Regions: regs, Region: getRegion(r.FormValue("region"))}); err != nil {
+	if err = t.Execute(w, ifill{BamPath: cli.paths, Region: getRegion(r.FormValue("region"))}); err != nil {
 		log.Fatal(err)
 	}
 	wtr, _ := xopen.Wopen("index.html")
@@ -254,7 +214,7 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tf.Depths.x = append(tf.Depths.x, float64(p.Pos))
 		}
 
-		if p.SoftStarts+p.SoftEnds >= MinSoftClips {
+		if p.SoftStarts+p.SoftEnds >= MinSoftClips && float64(p.SoftStarts+p.SoftEnds)/float64(p.Depth) > MinSoftClipProportion {
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
