@@ -26,6 +26,12 @@ import (
 
 var MaxRegion int = 1e7
 
+// MinSoftClips determines how many softclips are required Atoi
+// each position in order to be plotted. Higher values remove
+// noise.
+// TODO: make this a cliarg parameter.
+const MinSoftClips = 4
+
 type cliarg struct {
 	bigly.Options
 	Reference string       `arg:"-r,help:optional path to reference fasta."`
@@ -248,7 +254,7 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tf.Depths.x = append(tf.Depths.x, float64(p.Pos))
 		}
 
-		if p.SoftStarts > 1 || p.SoftEnds > 1 {
+		if p.SoftStarts+p.SoftEnds >= MinSoftClips {
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
 			tf.Softs.x = append(tf.Softs.x, float64(p.Pos))
