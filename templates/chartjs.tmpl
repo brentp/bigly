@@ -39,7 +39,7 @@ body {
 <div id="igvDiv" style="padding:5px; border:1px solid lightgray"></div>
         <div class="container" id="parent">
 
-                       {{ range $sm, $path := .BamPath }}
+                       {{ range $idx, $sm := .SampleNames }}
                 <div style="height:220px">
                     <label for="{{$sm}}">{{$sm}}</label> <span id="sm_{{$sm}}"></span>
                                        <canvas id="{{$sm}}" height="220" ></canvas>

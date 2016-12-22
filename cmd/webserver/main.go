@@ -111,9 +111,8 @@ func parseRegion(region string) (chrom string, start, end int, err error) {
 }
 
 type ifill struct {
-	BamPath map[string]string
-	Regions []string
-	Region  string
+	SampleNames []string
+	Region      string
 }
 
 func getRegion(region string) string {
@@ -130,10 +129,13 @@ func (cli *cliarg) ServeIndex(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	cli.paths = make(map[string]string, len(cli.BamPath))
+	samples := make([]string, 0, len(cli.BamPath))
 	for _, p := range cli.BamPath {
-		cli.paths[getShortName(p)] = p
+		name := getShortName(p)
+		cli.paths[name] = p
+		samples = append(samples, name)
 	}
-	if err = t.Execute(w, ifill{BamPath: cli.paths, Region: getRegion(r.FormValue("region"))}); err != nil {
+	if err = t.Execute(w, ifill{SampleNames: samples, Region: getRegion(r.FormValue("region"))}); err != nil {
 		log.Fatal(err)
 	}
 	wtr, _ := xopen.Wopen("index.html")
