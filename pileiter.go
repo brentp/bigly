@@ -40,13 +40,8 @@ type Position struct {
 	End   int
 }
 
-// Up is the user-facing function that performs the pileup.
-func Up(bampath string, opts Options, pos Position, fai *faidx.Faidx) *Iterator {
-	b, err := bamat.New(bampath)
-	if err != nil {
-		return &Iterator{err: err}
-	}
-
+// AtUp performs the pileup given a BamAt object.
+func AtUp(b *bamat.BamAt, opts Options, pos Position, fai *faidx.Faidx) *Iterator {
 	bit, err := b.Query(pos.Chrom, pos.Start, pos.End)
 	if err != nil {
 		b.Close()
@@ -80,6 +75,15 @@ func Up(bampath string, opts Options, pos Position, fai *faidx.Faidx) *Iterator 
 	}
 
 	return it
+}
+
+// Up performs the pileup given a path to a bam
+func Up(bampath string, opts Options, pos Position, fai *faidx.Faidx) *Iterator {
+	b, err := bamat.New(bampath)
+	if err != nil {
+		return &Iterator{err: err}
+	}
+	return AtUp(b, opts, pos, fai)
 }
 
 // Error returns any error encountered by the Iterator
