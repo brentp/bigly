@@ -170,6 +170,25 @@ func toPct(a, depth float64) float64 {
 	return 100.0 * float64(a) / float64(depth)
 }
 
+func fmax(a, b uint32) float64 {
+	if a > b {
+		return float64(a)
+	}
+	return float64(b)
+}
+
+// sometimes we get a single point with a signal for a large insert size when
+// there is an island of coverage in a no coverage area.
+// this removes large (2e4) values of insert size that are preceded by no coverage.
+func removeSoleOutliers(inserts xy) {
+	for i := 1; i < len(inserts.y); i++ {
+		if inserts.y[i-1] == 0 && inserts.y[i]-inserts.y[i-1] > 2e4 && i < len(inserts.y)-1 && inserts.y[i+1] == 0 {
+			inserts.y[i] = 0
+		}
+	}
+
+}
+
 func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Encoding", "gzip")
@@ -235,7 +254,8 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				splits[m] += c
 			}
 		}
-		in := float64(p.MeanInsertSizeLP + p.MeanInsertSizeRM)
+		// we take the max of left and right as it gives a cleaner signal than mean.
+		in := fmax(p.MeanInsertSizeLP, p.MeanInsertSizeRM)
 		if len(tf.Inserts.x) == 0 || (len(tf.Inserts.x) > 0 && in != tf.Inserts.y[len(tf.Inserts.y)-1]) {
 			if len(tf.Inserts.y) > 0 && tf.Inserts.y[len(tf.Inserts.y)-1] == 0 {
 				tf.Inserts.y = append(tf.Inserts.y, 0)
@@ -245,6 +265,7 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			tf.Inserts.y = append(tf.Inserts.y, float64(in))
 		}
 	}
+	removeSoleOutliers(tf.Inserts)
 	max := 1
 	sites := make([]int, 0, len(splits))
 	for pos, v := range splits {
@@ -297,7 +318,7 @@ func writeChart(w io.Writer, tf tfill, gt string, start, end int) error {
 	if err != nil {
 		return err
 	}
-	left2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Log, Position: chartjs.Left})
+	left2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Left})
 	if err != nil {
 		return err
 	}
