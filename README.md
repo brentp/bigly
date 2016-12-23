@@ -13,39 +13,40 @@ alignment that meets the requested filters:
 ```Go
 // Pile holds the information about a single base.
 type Pile struct {
-    Chrom                  string
-    Pos                    int
-    Depth                  int    // count of reads passing filters.
-    RefBase                byte   // Reference base a this position.
-    MisMatches             uint32 // number of mismatches .
-    ProperPairs            int    // count of reads with paired flag
-    SoftStarts             uint32 // counts of base preceding an 'S' cigar op
-    SoftEnds               uint32 // ...  following ...
-    HardStarts             uint32 // counts of base preceding an 'H' cigar op
-    HardEnds               uint32
-    InsertionStarts        uint32 // counts of base preceding an 'I' cigar op
-    InsertionEnds          uint32
-    Deletions              uint32  // counts of deletions 'D' at this base
-    Heads                  uint32  // counts of starts of reads at this base
-    Tails                  uint32  // counts of ends of reads at this base
-    Splitters              uint32  // count of non-secondary reads with SA tags.
-    Splitters1             uint32  // count of non-secondary reads with exactly 1 SA tag.
-    Bases                  []byte  // All bases from reads covering this position
-    Quals                  []uint8 // All quals from reads covering this position
-    MeanInsertSizeLP       uint32  // Calculated with left-most of pair
-    MeanInsertSizeRM       uint32  // Calculated with right-most of pair
-    WeirdCount             uint32  // Calculated with right-most of pair
-    Discordant             uint32  // Number of reads with insert size > ConcordantCutoff
-    DiscordantChrom        uint32  // Number of reads mapping on different chroms
-    DiscordantChromEntropy float32 // high value means all discordants came from same chrom.
-    GC65                   uint32  // GC content in a 65 base window centered on the current base.
-    GC257                  uint32  
-    Duplicity65            float32 // measure of lack of sequence entropy.
-    Duplicity257           float32 // measure of lack of sequence entropy.
-    SplitterPositions      []int   // Start, End Positions of splitters for reads overlapping this base.
-    SplitterStrings        []string
+	Chrom                  string
+	Pos                    int
+	Depth                  int    // count of reads passing filters.
+	RefBase                byte   // Reference base a this position.
+	MisMatches             uint32 // number of mismatches .
+	ProperPairs            int    // count of reads with paired flag
+	SoftStarts             uint32 // counts of base preceding an 'S' cigar op
+	SoftEnds               uint32 // ...  following ...
+	HardStarts             uint32 // counts of base preceding an 'H' cigar op
+	HardEnds               uint32
+	InsertionStarts        uint32 // counts of base preceding an 'I' cigar op
+	InsertionEnds          uint32
+	Deletions              uint32  // counts of deletions 'D' at this base
+	Heads                  uint32  // counts of starts of reads at this base
+	Tails                  uint32  // counts of ends of reads at this base
+	Splitters              uint32  // count of non-secondary reads with SA tags.
+	Splitters1             uint32  // count of non-secondary reads with exactly 1 SA tag.
+	Bases                  []byte  // All bases from reads covering this position
+	Quals                  []uint8 // All quals from reads covering this position
+	MeanInsertSizeLP       uint32  // Calculated with left-most of pair
+	MeanInsertSizeRM       uint32  // Calculated with right-most of pair
+	CountPlusPlus          uint32  // Paired reads mapped in +/+ orientation
+	CountMinusMinus        uint32  // Paired reads mapped in -/- orientation
+	CountMinusPlus         uint32  // Paired reads mapped in -/+ orientation
+	Discordant             uint32  // Number of reads with insert size > ConcordantCutoff
+	DiscordantChrom        uint32  // Number of reads mapping on different chroms
+	DiscordantChromEntropy float32 // high value means all discordants came from same chrom.
+	GC65                   uint32
+	GC257                  uint32
+	Duplicity65            float32 // measure of lack of sequence entropy.
+	Duplicity257           float32 // measure of lack of sequence entropy.
+	SplitterPositions      []int
+	SplitterStrings        []string
 }
-
 ```
 
 The program in `cmd/bigly/main.go` is distributed as an example program of what one can do with this
