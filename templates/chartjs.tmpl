@@ -40,7 +40,7 @@ body {
         <div class="container" id="parent">
 
                        {{ range $idx, $sm := .SampleNames }}
-                <div style="height:220px">
+                <div class="canvas_holder" style="height:220px">
                     <label for="{{$sm}}">{{$sm}}</label> <span id="sm_{{$sm}}"></span>
                                        <canvas id="{{$sm}}" height="220" ></canvas>
                 </div>
@@ -51,7 +51,8 @@ body {
     <script>
 var plots = {}
 
-jQuery('canvas').on('keyup', function(e) {
+jQuery('#parent').on('keyup', function(e) {
+	console.log("keyup")
 
 	if (e.keyCode != 37 && e.keyCode != 39 && e.keyCode != 189 && e.keyCode != 187) {
 		return false;
@@ -109,11 +110,11 @@ function updatePlot(json, id) {
 	ds[2].fill = false
 	ds[0].showLine = true
 	ds[1].showLine = true
-	ds[0].pointRadius = 7
-	ds[0].borderWidth = 3
+	ds[0].pointRadius = 4
+	ds[0].borderWidth = 1.4
 
-	ds[1].pointRadius = 7
-	ds[1].borderWidth = 3
+	ds[1].pointRadius = 4
+	ds[1].borderWidth = 1.4
 
 	ds[2].pointRadius = 0
 	ds[3].pointRadius = 0
@@ -145,8 +146,9 @@ jQuery(document).ready(function () {
                 options = {
                     showNavigation: true,
                     showRuler: true,
-					showKaryo: true,
+					showKaryo: false,
                     locus: "{{ .Region }}",
+					flanking: 0,
                     reference: {
                         id: "hg19"
                     },
@@ -182,6 +184,8 @@ jQuery(document).ready(function () {
 		browser.on('locuschange', updateSVPlots);
     });
 
+// holds the GET request objects in case we want to abort.
+var xhrs = {}
 
 function updateSVPlots(_, region) {
 	var region = cleanregion(region)
@@ -189,14 +193,15 @@ function updateSVPlots(_, region) {
 
 	jQuery('#parent canvas').each(function(i, div) {
 		var div = div;
-		jQuery.getJSON("data/" + div.id + "/" + region, function(json) {
+		if (xhrs[div.id] != undefined) {
+			xhrs[div.id].abort()
+		}
+		xhrs[div.id] = jQuery.getJSON("data/" + div.id + "/" + region, function(json) {
 			jQuery('#errors').html(""); // TODO this hides errors from other samples.
 			if(i != 0){
 				json.chart.options.legend = {display: false}
 			}
 			updatePlot(json.chart, div.id);
-			jQuery('#sm_' + div.id).html(json.gt)
-			console.log(json.gt)
 		}).fail(function(e) {
 			console.log(e.error(), div.id)
 			if(plots[div.id] !== undefined) {

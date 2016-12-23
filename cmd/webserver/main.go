@@ -20,6 +20,7 @@ import (
 	"github.com/brentp/bigly"
 	"github.com/brentp/faidx"
 	chartjs "github.com/brentp/go-chartjs"
+	"github.com/brentp/goleft/covmed"
 	"github.com/brentp/xopen"
 )
 
@@ -43,8 +44,7 @@ type cliarg struct {
 	// maps from sample id to bam path.
 	paths map[string]string `arg:"-"`
 
-	// keyed by region, then by sample.
-	Genotypes map[string]map[string]string `arg:"-"`
+	bamStats *covmed.Sizes `arg:"-"`
 }
 
 // satisfy the required interface with this struct and methods.
@@ -148,8 +148,6 @@ type tfill struct {
 	Splitters xy
 	Inserts   xy
 	Softs     xy
-
-	gts map[string]string
 }
 
 func abs(p float64) float64 {
@@ -171,10 +169,14 @@ func toPct(a, depth float64) float64 {
 }
 
 func fmax(a, b uint32) float64 {
+	v := b
 	if a > b {
-		return float64(a)
+		v = a
 	}
-	return float64(b)
+	if v > 1000 {
+		v = 1000
+	}
+	return float64(v)
 }
 
 // sometimes we get a single point with a signal for a large insert size when
@@ -186,10 +188,10 @@ func removeSoleOutliers(inserts xy) {
 			inserts.y[i] = 0
 		}
 	}
-
 }
 
 func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Encoding", "gzip")
 	po := strings.Split(strings.TrimSpace(r.URL.Path[len("/data/"):]), "/")
@@ -214,18 +216,18 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	bamPath := cli.paths[name]
 
-	gts, ok := cli.Genotypes[region]
-	var gt string
-	if ok {
-		gt = gts[name]
-	}
-
 	it := bigly.Up(bamPath, cli.Options, bigly.Position{chrom, start, end}, cli.ref)
 	tf := tfill{Depths: xy{}, Splitters: xy{}, Inserts: xy{}, Softs: xy{}}
-	tf.gts = gts
 	splits := make(map[int]int)
 	for it.Next() {
 		p := it.Pile()
+		select {
+		case <-ctx.Done():
+			// got cancelled by the client.
+			return
+		default:
+		}
+
 		if len(tf.Depths.y) == 0 || abs(tf.Depths.y[len(tf.Depths.y)-1]-float64(p.Depth)) >= 1 {
 			if len(tf.Depths.y) != 0 && tf.Depths.y[len(tf.Depths.y)-1] == 0 {
 				tf.Depths.y = append(tf.Depths.y, 0)
@@ -301,13 +303,13 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	it.Close()
-	if err := writeChart(w, tf, gt, start, end); err != nil {
+	if err := writeChart(w, tf, start, end); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println(err)
 	}
 }
 
-func writeChart(w io.Writer, tf tfill, gt string, start, end int) error {
+func writeChart(w io.Writer, tf tfill, start, end int) error {
 	chart := chartjs.Chart{Label: "bigly-chart"}
 	xtick := &chartjs.Tick{Min: float64(start), Max: float64(end)}
 	right2, err := chart.AddYAxis(chartjs.Axis{Type: chartjs.Linear, Position: chartjs.Right})
@@ -355,7 +357,7 @@ func writeChart(w io.Writer, tf tfill, gt string, start, end int) error {
 		return err
 	}
 
-	json := fmt.Sprintf(`{"chart": %s, "gt": "%s"}`, string(buf), gt)
+	json := fmt.Sprintf(`{"chart": %s}`, string(buf))
 
 	gz := gzip.NewWriter(w)
 	defer gz.Close()
