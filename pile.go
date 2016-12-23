@@ -64,7 +64,9 @@ type Pile struct {
 	Quals                  []uint8 // All quals from reads covering this position
 	MeanInsertSizeLP       uint32  // Calculated with left-most of pair
 	MeanInsertSizeRM       uint32  // Calculated with right-most of pair
-	WeirdCount             uint32  // Calculated with right-most of pair
+	CountPlusPlus          uint32  // Paired reads mapped in +/+ orientation
+	CountMinusMinus        uint32  // Paired reads mapped in -/- orientation
+	CountMinusPlus         uint32  // Paired reads mapped in -/+ orientation
 	Discordant             uint32  // Number of reads with insert size > ConcordantCutoff
 	DiscordantChrom        uint32  // Number of reads mapping on different chroms
 	DiscordantChromEntropy float32 // high value means all discordants came from same chrom.
@@ -123,7 +125,7 @@ func (p Pile) TabString(o Options) string {
 		// string(p.RefBase), string(p.Bases), string(formatQual(p.Quals)),
 		p.MeanInsertSizeLP,
 		p.MeanInsertSizeRM,
-		p.WeirdCount,
+		p.CountPlusPlus+p.CountMinusPlus+p.CountMinusMinus,
 		p.Discordant,
 		p.DiscordantChrom,
 		p.DiscordantChromEntropy,
@@ -186,7 +188,13 @@ func (p *Pile) Update(o Options, alns []*Align) {
 					//insRightMTotal += 1.0 / float64(a.Start()-a.MatePos)
 					insRightMTotal += float64(a.Start() - a.MatePos)
 				} else {
-					p.WeirdCount++
+					if a.Flags&sam.Reverse == sam.Reverse && a.Flags&sam.MateReverse == sam.MateReverse {
+						p.CountMinusMinus++
+					} else if 0 == a.Flags&sam.Reverse && 0 == a.Flags&sam.MateReverse {
+						p.CountPlusPlus++
+					} else {
+						p.CountMinusPlus++
+					}
 				}
 			}
 
