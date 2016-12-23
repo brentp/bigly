@@ -51,8 +51,10 @@ body {
     <script>
 var plots = {}
 
-jQuery('#parent').on('keyup', function(e) {
-	console.log("keyup")
+jQuery('body').on('keyup', function(e) {
+	if (e.target == jQuery('.igvNavigationSearchInput')[0]) {
+		return
+	}
 
 	if (e.keyCode != 37 && e.keyCode != 39 && e.keyCode != 189 && e.keyCode != 187) {
 		return false;
