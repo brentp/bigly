@@ -43,30 +43,36 @@ type Options struct {
 
 // Pile holds the information about a single base.
 type Pile struct {
-	Chrom                  string
-	Pos                    int
-	Depth                  int    // count of reads passing filters.
-	RefBase                byte   // Reference base a this position.
-	MisMatches             uint32 // number of mismatches .
-	ProperPairs            int    // count of reads with paired flag
-	SoftStarts             uint32 // counts of base preceding an 'S' cigar op
-	SoftEnds               uint32 // ...  following ...
-	HardStarts             uint32 // counts of base preceding an 'H' cigar op
-	HardEnds               uint32
-	InsertionStarts        uint32 // counts of base preceding an 'I' cigar op
-	InsertionEnds          uint32
-	Deletions              uint32  // counts of deletions 'D' at this base
-	Heads                  uint32  // counts of starts of reads at this base
-	Tails                  uint32  // counts of ends of reads at this base
-	Splitters              uint32  // count of non-secondary reads with SA tags.
-	Splitters1             uint32  // count of non-secondary reads with exactly 1 SA tag.
-	Bases                  []byte  // All bases from reads covering this position
-	Quals                  []uint8 // All quals from reads covering this position
-	MeanInsertSizeLP       uint32  // Calculated with left-most of pair
-	MeanInsertSizeRM       uint32  // Calculated with right-most of pair
-	CountPlusPlus          uint32  // Paired reads mapped in +/+ orientation
-	CountMinusMinus        uint32  // Paired reads mapped in -/- orientation
-	CountMinusPlus         uint32  // Paired reads mapped in -/+ orientation
+	Chrom                 string
+	Pos                   int
+	Depth                 int    // count of reads passing filters.
+	RefBase               byte   // Reference base a this position.
+	MisMatches            uint32 // number of mismatches .
+	ProperPairs           int    // count of reads with paired flag
+	SoftStarts            uint32 // counts of base preceding an 'S' cigar op
+	SoftEnds              uint32 // ...  following ...
+	HardStarts            uint32 // counts of base preceding an 'H' cigar op
+	HardEnds              uint32
+	InsertionStarts       uint32 // counts of base preceding an 'I' cigar op
+	InsertionEnds         uint32
+	Deletions             uint32  // counts of deletions 'D' at this base
+	Heads                 uint32  // counts of starts of reads at this base
+	Tails                 uint32  // counts of ends of reads at this base
+	Splitters             uint32  // count of non-secondary reads with SA tags.
+	Splitters1            uint32  // count of non-secondary reads with exactly 1 SA tag.
+	Bases                 []byte  // All bases from reads covering this position
+	Quals                 []uint8 // All quals from reads covering this position
+	MeanInsertSizeLP      uint32  // Calculated with left-most of pair
+	MeanInsertSizeRM      uint32  // Calculated with right-most of pair
+	OrientationPlusPlus   uint32  // Paired reads mapped in +/+ orientation
+	OrientationMinusMinus uint32  // Paired reads mapped in -/- orientation
+	OrientationMinusPlus  uint32  // Paired reads mapped in -/+ orientation
+	/*
+		TODO: figure out how to do this because these are excluded by ExcludeFlag.
+			   could try to calculate and it will ony be non-zero if these are not excluded.C
+		Duplicates             uint32  // reads counted as duplicates
+		Supplementary          uint32  // reads counted as supplementary
+	*/
 	Discordant             uint32  // Number of reads with insert size > ConcordantCutoff
 	DiscordantChrom        uint32  // Number of reads mapping on different chroms
 	DiscordantChromEntropy float32 // high value means all discordants came from same chrom.
@@ -125,7 +131,7 @@ func (p Pile) TabString(o Options) string {
 		// string(p.RefBase), string(p.Bases), string(formatQual(p.Quals)),
 		p.MeanInsertSizeLP,
 		p.MeanInsertSizeRM,
-		p.CountPlusPlus+p.CountMinusPlus+p.CountMinusMinus,
+		p.OrientationPlusPlus+p.OrientationMinusPlus+p.OrientationMinusMinus,
 		p.Discordant,
 		p.DiscordantChrom,
 		p.DiscordantChromEntropy,
@@ -181,19 +187,19 @@ func (p *Pile) Update(o Options, alns []*Align) {
 				// same chromosome.
 				if a.Start() < a.MatePos && a.Flags&sam.Reverse != sam.Reverse {
 					insLeftPCount++
-					//insLeftPTotal += 1.0 / float64(a.MatePos-a.Start())
-					insLeftPTotal += float64(a.MatePos - a.Start())
+					insLeftPTotal += 1.0 / float64(a.MatePos-a.Start())
+					//insLeftPTotal += float64(a.MatePos - a.Start())
 				} else if a.Start() > a.MatePos && a.Flags&sam.Reverse == sam.Reverse {
 					insRightMCount++
-					//insRightMTotal += 1.0 / float64(a.Start()-a.MatePos)
-					insRightMTotal += float64(a.Start() - a.MatePos)
+					insRightMTotal += 1.0 / float64(a.Start()-a.MatePos)
+					//insRightMTotal += float64(a.Start() - a.MatePos)
 				} else {
 					if a.Flags&sam.Reverse == sam.Reverse && a.Flags&sam.MateReverse == sam.MateReverse {
-						p.CountMinusMinus++
+						p.OrientationMinusMinus++
 					} else if 0 == a.Flags&sam.Reverse && 0 == a.Flags&sam.MateReverse {
-						p.CountPlusPlus++
+						p.OrientationPlusPlus++
 					} else {
-						p.CountMinusPlus++
+						p.OrientationMinusPlus++
 					}
 				}
 			}
@@ -264,12 +270,14 @@ func (p *Pile) Update(o Options, alns []*Align) {
 	if insLeftPCount == 0 {
 		p.MeanInsertSizeLP = 0
 	} else {
-		p.MeanInsertSizeLP = uint32(insLeftPTotal / insLeftPCount)
+		//p.MeanInsertSizeLP = uint32(insLeftPTotal / insLeftPCount)
+		p.MeanInsertSizeLP = uint32(insLeftPCount / insLeftPTotal)
 	}
 	if insRightMCount == 0 {
 		p.MeanInsertSizeRM = 0
 	} else {
-		p.MeanInsertSizeRM = uint32(insRightMTotal / insRightMCount)
+		//p.MeanInsertSizeRM = uint32(insRightMTotal / insRightMCount)
+		p.MeanInsertSizeRM = uint32(insRightMCount / insRightMTotal)
 	}
 	if p.DiscordantChrom > 1 {
 		p.DiscordantChromEntropy = float32(entropy(discMates))
