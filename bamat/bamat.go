@@ -1,6 +1,7 @@
 package bamat
 
 import (
+	"bufio"
 	"os"
 
 	"github.com/biogo/hts/bam"
@@ -27,7 +28,7 @@ func New(path string) (*BamAt, error) {
 		return nil, err
 	}
 	defer f.Close()
-	idx, err := bam.ReadIndex(f)
+	idx, err := bam.ReadIndex(bufio.NewReader(f))
 	if err != nil {
 		return nil, err
 	}

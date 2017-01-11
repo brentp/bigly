@@ -34,9 +34,9 @@ type Pile struct {
 	Quals                  []uint8 // All quals from reads covering this position
 	MeanInsertSizeLP       uint32  // Calculated with left-most of pair
 	MeanInsertSizeRM       uint32  // Calculated with right-most of pair
-	CountPlusPlus          uint32  // Paired reads mapped in +/+ orientation
-	CountMinusMinus        uint32  // Paired reads mapped in -/- orientation
-	CountMinusPlus         uint32  // Paired reads mapped in -/+ orientation
+	OrientationPlusPlus    uint32  // Paired reads mapped in +/+ orientation
+	OrientationMinusMinus  uint32  // Paired reads mapped in -/- orientation
+	OrientationMinusPlus   uint32  // Paired reads mapped in -/+ orientation
 	Discordant             uint32  // Number of reads with insert size > ConcordantCutoff
 	DiscordantChrom        uint32  // Number of reads mapping on different chroms
 	DiscordantChromEntropy float32 // high value means all discordants came from same chrom.

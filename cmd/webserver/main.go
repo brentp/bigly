@@ -218,6 +218,9 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	it := bigly.Up(bamPath, cli.Options, bigly.Position{chrom, start, end}, cli.ref)
 	tf := tfill{Depths: xy{}, Splitters: xy{}, Inserts: xy{}, Softs: xy{}}
+	tf.Inserts.x = append(tf.Inserts.x, float64(start))
+	tf.Inserts.y = append(tf.Inserts.y, math.NaN())
+
 	splits := make(map[int]int)
 	for it.Next() {
 		p := it.Pile()
@@ -258,16 +261,18 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		// we take the max of left and right as it gives a cleaner signal than mean.
 		in := fmax(p.MeanInsertSizeLP, p.MeanInsertSizeRM)
-		if len(tf.Inserts.x) == 0 || (len(tf.Inserts.x) > 0 && in != tf.Inserts.y[len(tf.Inserts.y)-1]) {
-			if len(tf.Inserts.y) > 0 && tf.Inserts.y[len(tf.Inserts.y)-1] == 0 {
-				tf.Inserts.y = append(tf.Inserts.y, 0)
-				tf.Inserts.x = append(tf.Inserts.x, float64(p.Pos-1))
-			}
-			tf.Inserts.x = append(tf.Inserts.x, float64(p.Pos))
-			tf.Inserts.y = append(tf.Inserts.y, float64(in))
+		last := tf.Inserts.y[len(tf.Inserts.y)-1]
+		if last == 0 || math.IsNaN(last) {
+			tf.Inserts.y = append(tf.Inserts.y, math.NaN())
+			tf.Inserts.y = append(tf.Inserts.y, math.NaN())
+
+			tf.Inserts.x = append(tf.Inserts.x, tf.Inserts.x[len(tf.Inserts.x)-1])
+			tf.Inserts.x = append(tf.Inserts.x, float64(p.Pos-1))
 		}
+		tf.Inserts.x = append(tf.Inserts.x, float64(p.Pos))
+		tf.Inserts.y = append(tf.Inserts.y, float64(in))
 	}
-	removeSoleOutliers(tf.Inserts)
+	//removeSoleOutliers(tf.Inserts)
 	max := 1
 	sites := make([]int, 0, len(splits))
 	for pos, v := range splits {
