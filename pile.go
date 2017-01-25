@@ -53,18 +53,18 @@ type Pile struct {
 	HardEnds              uint32
 	InsertionStarts       uint32 // counts of base preceding an 'I' cigar op
 	InsertionEnds         uint32
-	Deletions             uint32   // counts of deletions 'D' at this base
-	Heads                 uint32   // counts of starts of reads at this base
-	Tails                 uint32   // counts of ends of reads at this base
-	Splitters             uint32   // count of non-secondary reads with SA tags.
-	Splitters1            uint32   // count of non-secondary reads with exactly 1 SA tag.
-	Bases                 []byte   // All bases from reads covering this position
-	Quals                 []uint8  // All quals from reads covering this position
-	InsertSizeLPs         []uint32 // All insert size for left-most of pair
-	InsertSizeRMs         []uint32 // ...                 right-most of pair
-	OrientationPlusPlus   uint32   // Paired reads mapped in +/+ orientation
-	OrientationMinusMinus uint32   // Paired reads mapped in -/- orientation
-	OrientationMinusPlus  uint32   // Paired reads mapped in -/+ orientation
+	Deletions             uint32  // counts of deletions 'D' at this base
+	Heads                 uint32  // counts of starts of reads at this base
+	Tails                 uint32  // counts of ends of reads at this base
+	Splitters             uint32  // count of non-secondary reads with SA tags.
+	Splitters1            uint32  // count of non-secondary reads with exactly 1 SA tag.
+	Bases                 []byte  // All bases from reads covering this position
+	Quals                 []uint8 // All quals from reads covering this position
+	InsertSizeLPs         []int32 // All insert size for left-most of pair
+	InsertSizeRMs         []int32 // ...                 right-most of pair
+	OrientationPlusPlus   uint32  // Paired reads mapped in +/+ orientation
+	OrientationMinusMinus uint32  // Paired reads mapped in -/- orientation
+	OrientationMinusPlus  uint32  // Paired reads mapped in -/+ orientation
 	/*
 		TODO: figure out how to do this because these are excluded by ExcludeFlag.
 			   could try to calculate and it will ony be non-zero if these are not excluded.C
@@ -106,7 +106,7 @@ func formatInts(a []int) string {
 	return s
 }
 
-func mean(arr []uint32) float32 {
+func mean(arr []int32) float32 {
 	var s float64
 	for _, a := range arr {
 		s += float64(a)
@@ -193,9 +193,9 @@ func (p *Pile) Update(o Options, alns []*Align) {
 			} else {
 				// same chromosome.
 				if a.Start() < a.MatePos && a.Flags&sam.Reverse != sam.Reverse {
-					p.InsertSizeLPs = append(p.InsertSizeLPs, uint32(a.MatePos-a.Start()))
+					p.InsertSizeLPs = append(p.InsertSizeLPs, int32(a.MatePos-a.Start()))
 				} else if a.Start() > a.MatePos && a.Flags&sam.Reverse == sam.Reverse {
-					p.InsertSizeRMs = append(p.InsertSizeRMs, uint32(float64(a.Start()-a.MatePos)))
+					p.InsertSizeRMs = append(p.InsertSizeRMs, int32(float64(a.Start()-a.MatePos)))
 				} else {
 					if a.Flags&sam.Reverse == sam.Reverse && a.Flags&sam.MateReverse == sam.MateReverse {
 						p.OrientationMinusMinus++
