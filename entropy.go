@@ -37,6 +37,15 @@ func entropy(i []int) float64 {
 	return -s / math.Log(float64(k+1))
 }
 
+func pMode(posns []Position) (int, int) {
+	as := make([]int, 2*len(posns))
+	for i, p := range posns {
+		as[2*i] = p.Start
+		as[2*i+1] = p.End
+	}
+	return Mode(as)
+}
+
 // Mode returns the most frequent value and the count of times it was seen.
 func Mode(a []int) (int, int) {
 	if len(a) < 1 {

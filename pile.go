@@ -13,9 +13,6 @@ import (
 // SkipBase holds the byte used for a Skip Operation.
 var SkipBase byte = '.'
 
-// ConcordantCutoff excludes any pairs with a distance larger than this from the calculation of MeanInsertSize
-var ConcordantCutoff = 10000
-
 func min(a, b int) int {
 	if a > b {
 		return b
@@ -39,6 +36,7 @@ type Options struct {
 	MinClipLength     int    `arg:"-c,help:only count H/S clips of at least this length"`
 	IncludeBases      bool   `arg:"-b,help:output each base and base quality score"`
 	SplitterVerbosity int    `arg:"-s,help:0-only count; 1:count and single most frequent; 2:all SAs; 3:dont shorten positions"`
+	ConcordantCutoff  int    `arg:"-o,help:distance beyond which mates are called discordant"`
 }
 
 // Pile holds the information about a single base.
@@ -55,18 +53,18 @@ type Pile struct {
 	HardEnds              uint32
 	InsertionStarts       uint32 // counts of base preceding an 'I' cigar op
 	InsertionEnds         uint32
-	Deletions             uint32  // counts of deletions 'D' at this base
-	Heads                 uint32  // counts of starts of reads at this base
-	Tails                 uint32  // counts of ends of reads at this base
-	Splitters             uint32  // count of non-secondary reads with SA tags.
-	Splitters1            uint32  // count of non-secondary reads with exactly 1 SA tag.
-	Bases                 []byte  // All bases from reads covering this position
-	Quals                 []uint8 // All quals from reads covering this position
-	MeanInsertSizeLP      uint32  // Calculated with left-most of pair
-	MeanInsertSizeRM      uint32  // Calculated with right-most of pair
-	OrientationPlusPlus   uint32  // Paired reads mapped in +/+ orientation
-	OrientationMinusMinus uint32  // Paired reads mapped in -/- orientation
-	OrientationMinusPlus  uint32  // Paired reads mapped in -/+ orientation
+	Deletions             uint32   // counts of deletions 'D' at this base
+	Heads                 uint32   // counts of starts of reads at this base
+	Tails                 uint32   // counts of ends of reads at this base
+	Splitters             uint32   // count of non-secondary reads with SA tags.
+	Splitters1            uint32   // count of non-secondary reads with exactly 1 SA tag.
+	Bases                 []byte   // All bases from reads covering this position
+	Quals                 []uint8  // All quals from reads covering this position
+	InsertSizeLPs         []uint32 // All insert size for left-most of pair
+	InsertSizeRMs         []uint32 // ...                 right-most of pair
+	OrientationPlusPlus   uint32   // Paired reads mapped in +/+ orientation
+	OrientationMinusMinus uint32   // Paired reads mapped in -/- orientation
+	OrientationMinusPlus  uint32   // Paired reads mapped in -/+ orientation
 	/*
 		TODO: figure out how to do this because these are excluded by ExcludeFlag.
 			   could try to calculate and it will ony be non-zero if these are not excluded.C
@@ -80,8 +78,7 @@ type Pile struct {
 	GC257                  uint32
 	Duplicity65            float32 // measure of lack of sequence entropy.
 	Duplicity257           float32 // measure of lack of sequence entropy.
-	SplitterPositions      []int
-	SplitterStrings        []string
+	SplitterPositions      []Position
 }
 
 // from biogo/hts
@@ -109,15 +106,27 @@ func formatInts(a []int) string {
 	return s
 }
 
+func mean(arr []uint32) float32 {
+	var s float64
+	for _, a := range arr {
+		s += float64(a)
+	}
+	return float32(s / float64(len(arr)))
+}
+
 // TabString prints a tab-delimited version of the Pile
 func (p Pile) TabString(o Options) string {
 	spl := ""
-	if o.SplitterVerbosity > 0 && (len(p.SplitterPositions) > 0 || len(p.SplitterStrings) > 0) {
+	if o.SplitterVerbosity > 0 && len(p.SplitterPositions) > 0 {
 		if o.SplitterVerbosity == 1 {
-			m, c := Mode(p.SplitterPositions)
+			m, c := pMode(p.SplitterPositions)
 			spl = fmt.Sprintf("%d/%d/%d", m, c, len(p.SplitterPositions))
 		} else {
-			spl = strings.Join(p.SplitterStrings, ",")
+			aspl := make([]string, len(p.SplitterPositions))
+			for i, s := range p.SplitterPositions {
+				aspl[i] = s.String()
+			}
+			spl = strings.Join(aspl, ",")
 		}
 	}
 	return fmt.Sprintf("%s\t%d\t%d\t%c\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%.2f\t%d\t%d\t%.2f\t%.2f\t%s",
@@ -129,8 +138,8 @@ func (p Pile) TabString(o Options) string {
 		p.Splitters,
 		p.Splitters1,
 		// string(p.RefBase), string(p.Bases), string(formatQual(p.Quals)),
-		p.MeanInsertSizeLP,
-		p.MeanInsertSizeRM,
+		mean(p.InsertSizeLPs),
+		mean(p.InsertSizeRMs),
 		p.OrientationPlusPlus+p.OrientationMinusPlus+p.OrientationMinusMinus,
 		p.Discordant,
 		p.DiscordantChrom,
@@ -154,8 +163,6 @@ func abs(a int) int {
 func (p *Pile) Update(o Options, alns []*Align) {
 	// the Total values hold the sum of 1 / val so we can calc harmonic Mean
 	// with less susceptiblity to outliers.
-	insLeftPTotal, insLeftPCount := float64(0), float64(0)
-	insRightMTotal, insRightMCount := float64(0), float64(0)
 	var discMates []int
 	for _, a := range alns {
 		if a.MapQ < o.MinMappingQuality {
@@ -177,7 +184,7 @@ func (p *Pile) Update(o Options, alns []*Align) {
 			*/
 			// This gives much cleaner results for eat least 1 case than using the actual
 			// flag
-			if abs(a.Start()-a.MatePos) > ConcordantCutoff {
+			if abs(a.Start()-a.MatePos) > o.ConcordantCutoff {
 				p.Discordant++
 			}
 			if a.MateRef.ID() != a.Ref.ID() {
@@ -186,13 +193,9 @@ func (p *Pile) Update(o Options, alns []*Align) {
 			} else {
 				// same chromosome.
 				if a.Start() < a.MatePos && a.Flags&sam.Reverse != sam.Reverse {
-					insLeftPCount++
-					insLeftPTotal += 1.0 / float64(a.MatePos-a.Start())
-					//insLeftPTotal += float64(a.MatePos - a.Start())
+					p.InsertSizeLPs = append(p.InsertSizeLPs, uint32(a.MatePos-a.Start()))
 				} else if a.Start() > a.MatePos && a.Flags&sam.Reverse == sam.Reverse {
-					insRightMCount++
-					insRightMTotal += 1.0 / float64(a.Start()-a.MatePos)
-					//insRightMTotal += float64(a.Start() - a.MatePos)
+					p.InsertSizeRMs = append(p.InsertSizeRMs, uint32(float64(a.Start()-a.MatePos)))
 				} else {
 					if a.Flags&sam.Reverse == sam.Reverse && a.Flags&sam.MateReverse == sam.MateReverse {
 						p.OrientationMinusMinus++
@@ -267,18 +270,6 @@ func (p *Pile) Update(o Options, alns []*Align) {
 		}
 	}
 
-	if insLeftPCount == 0 {
-		p.MeanInsertSizeLP = 0
-	} else {
-		//p.MeanInsertSizeLP = uint32(insLeftPTotal / insLeftPCount)
-		p.MeanInsertSizeLP = uint32(insLeftPCount / insLeftPTotal)
-	}
-	if insRightMCount == 0 {
-		p.MeanInsertSizeRM = 0
-	} else {
-		//p.MeanInsertSizeRM = uint32(insRightMTotal / insRightMCount)
-		p.MeanInsertSizeRM = uint32(insRightMCount / insRightMTotal)
-	}
 	if p.DiscordantChrom > 1 {
 		p.DiscordantChromEntropy = float32(entropy(discMates))
 	}
@@ -297,8 +288,7 @@ func (p *Pile) updateSplitters(o Options, tags []byte) {
 		sas := ParseSAs(tags)
 		for _, sa := range sas {
 			if sa.MapQ >= o.MinMappingQuality {
-				p.SplitterPositions = append(p.SplitterPositions, sa.Pos)
-				p.SplitterPositions = append(p.SplitterPositions, sa.End())
+				p.SplitterPositions = append(p.SplitterPositions, Position{string(sa.Chrom), sa.Pos, sa.End()})
 			}
 		}
 		return
@@ -307,16 +297,8 @@ func (p *Pile) updateSplitters(o Options, tags []byte) {
 	for _, sa := range sas {
 		if sa.MapQ >= o.MinMappingQuality {
 			// note that we add 1 here to put it back to 1-based coords.
-			if p.Chrom == string(sa.Chrom) && o.SplitterVerbosity < 3 {
-				if p.Pos > sa.Pos {
-					// if we are left of the site, then the end of previous splitters is the one of interest.
-					// this might not work for inversion...
-					p.SplitterStrings = append(p.SplitterStrings, strconv.Itoa(sa.End()))
-				} else {
-					p.SplitterStrings = append(p.SplitterStrings, strconv.Itoa(sa.Pos))
-				}
-			} else {
-				p.SplitterStrings = append(p.SplitterStrings, fmt.Sprintf("%s:%d-%d", sa.Chrom, sa.Pos+1, sa.End()))
+			if p.Chrom == string(sa.Chrom) {
+				p.SplitterPositions = append(p.SplitterPositions, Position{string(sa.Chrom), sa.Pos, sa.End()})
 			}
 		}
 	}

@@ -3,6 +3,7 @@ package bigly
 import (
 	"io"
 	"log"
+	"strconv"
 
 	"github.com/biogo/hts/bam"
 	"github.com/biogo/hts/sam"
@@ -33,11 +34,15 @@ type Iterator struct {
 	gcs     [2]*faidx.FaPos
 }
 
-// Position indicates where the pileup is performed
+// Position is a chrom, start, end (0-based, half-open)
 type Position struct {
 	Chrom string
 	Start int
 	End   int
+}
+
+func (p Position) String() string {
+	return p.Chrom + ":" + strconv.Itoa(p.Start+1) + "-" + strconv.Itoa(p.End)
 }
 
 // AtUp performs the pileup given a BamAt object.

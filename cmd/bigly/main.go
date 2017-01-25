@@ -22,12 +22,13 @@ type cliarg struct {
 }
 
 func (c cliarg) Version() string {
-	return "bigly 0.2.0"
+	return "bigly 0.3.0"
 }
 
 func main() {
 	cli := &cliarg{}
 	cli.Options.MinBaseQuality = 10
+	cli.Options.ConcordantCutoff = 10000
 	cli.Options.MinMappingQuality = 5
 	cli.Options.MinClipLength = 15
 	arg.MustParse(cli)
