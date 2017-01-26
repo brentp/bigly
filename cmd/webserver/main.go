@@ -378,6 +378,7 @@ func main() {
 
 	cli := &cliarg{}
 	cli.Options.MinBaseQuality = 10
+	cli.Options.ConcordantCutoff = 10000
 	cli.Options.MinMappingQuality = 5
 	cli.Options.MinClipLength = 15
 	cli.Options.SplitterVerbosity = 1
