@@ -56,15 +56,14 @@ func New(path string) (*BamAt, error) {
 // Query the BamAt with 0-base half-open interval.
 func (b *BamAt) Query(chrom string, start int, end int) (*bam.Iterator, error) {
 	ref := b.Refs[chrom]
+	if end <= 0 {
+		end = ref.Len() - 1
+	}
 	chunks, err := b.idx.Chunks(ref, start, end)
 	if err != nil {
 		return nil, err
 	}
-	it, err := bam.NewIterator(b.Reader, chunks)
-	if err != nil {
-		return nil, err
-	}
-	return it, err
+	return bam.NewIterator(b.Reader, chunks)
 }
 
 // Close closes the underlying file and the Bam.Reader
