@@ -106,12 +106,15 @@ func formatInts(a []int) string {
 	return s
 }
 
-func mean(arr []int32) float32 {
+func mean(arr []int32) int {
+	if len(arr) == 0 {
+		return 0
+	}
 	var s float64
 	for _, a := range arr {
 		s += float64(a)
 	}
-	return float32(s / float64(len(arr)))
+	return int(0.5 + s/float64(len(arr)))
 }
 
 // TabString prints a tab-delimited version of the Pile

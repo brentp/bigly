@@ -47,6 +47,9 @@ func (p Position) String() string {
 
 // AtUp performs the pileup given a BamAt object.
 func AtUp(b *bamat.BamAt, opts Options, pos Position, fai *faidx.Faidx) *Iterator {
+	if pos.End <= 0 {
+		pos.End = b.Refs[pos.Chrom].Len() - 1
+	}
 	bit, err := b.Query(pos.Chrom, pos.Start, pos.End)
 	if err != nil {
 		b.Close()

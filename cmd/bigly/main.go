@@ -48,17 +48,22 @@ func main() {
 	defer stdout.Flush()
 
 	chromse := strings.Split(cli.Region, ":")
-	se := strings.Split(chromse[1], "-")
+	var start, end int
+	if len(chromse) > 1 {
+		var err error
+		se := strings.Split(chromse[1], "-")
 
-	start, err := strconv.Atoi(se[0])
-	if err != nil {
-		log.Fatal(err)
+		start, err = strconv.Atoi(se[0])
+		if err != nil {
+			log.Fatal(err)
+		}
+		end, err = strconv.Atoi(se[1])
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		start = 1
 	}
-	end, err := strconv.Atoi(se[1])
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	var ref *faidx.Faidx
 	if cli.Reference != "" {
 		var err error
@@ -66,6 +71,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	}
+	if end == 0 {
+		end = -1
 	}
 
 	it := bigly.Up(cli.BamPath, cli.Options, bigly.Position{chromse[0], start - 1, end}, ref)
