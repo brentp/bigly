@@ -36,9 +36,10 @@ type Iterator struct {
 
 // Position is a chrom, start, end (0-based, half-open)
 type Position struct {
-	Chrom string
-	Start int
-	End   int
+	Chrom  string
+	Start  int
+	End    int
+	Strand bool // + == True
 }
 
 func (p Position) String() string {

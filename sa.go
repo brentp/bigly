@@ -13,7 +13,7 @@ import (
 type SA struct {
 	Chrom  []byte
 	Pos    int
-	Strand int8
+	Strand bool
 	Cigar  []byte
 	MapQ   uint8
 	NM     uint16
@@ -22,7 +22,7 @@ type SA struct {
 }
 
 func RecordToSA(r *sam.Record) *SA {
-	return &SA{Chrom: []byte(r.Ref.Name()), Pos: r.Start(), Strand: r.Strand(), Parsed: r.Cigar}
+	return &SA{Chrom: []byte(r.Ref.Name()), Pos: r.Start(), Strand: r.Strand() != -1, Parsed: r.Cigar}
 }
 
 func AsSAs(r *sam.Record, cigs []byte) []*SA {
@@ -99,11 +99,7 @@ func ParseSA(sa []byte) SA {
 		case 3:
 			s.Cigar = sa[off:next]
 		case 2:
-			if sa[off] == '-' {
-				s.Strand = -1
-			} else {
-				s.Strand = 1
-			}
+			s.Strand = sa[off] != '-'
 
 		}
 		off = 1 + next

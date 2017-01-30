@@ -76,7 +76,7 @@ func main() {
 		end = -1
 	}
 
-	it := bigly.Up(cli.BamPath, cli.Options, bigly.Position{chromse[0], start - 1, end}, ref)
+	it := bigly.Up(cli.BamPath, cli.Options, bigly.Position{Chrom: chromse[0], Start: start - 1, End: end}, ref)
 	for it.Next() {
 		p := it.Pile()
 		fmt.Fprintln(stdout, p.TabString(cli.Options))

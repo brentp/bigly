@@ -282,27 +282,15 @@ func (p *Pile) Update(o Options, alns []*Align) {
 	}
 }
 
-// depending on the options, we track the actual positions of the splitters.
+// track the actual positions of the splitters.
 func (p *Pile) updateSplitters(o Options, tags []byte) {
 	if o.SplitterVerbosity == 0 {
-		return
-	}
-	if o.SplitterVerbosity == 1 {
-		sas := ParseSAs(tags)
-		for _, sa := range sas {
-			if sa.MapQ >= o.MinMappingQuality {
-				p.SplitterPositions = append(p.SplitterPositions, Position{string(sa.Chrom), sa.Pos, sa.End()})
-			}
-		}
 		return
 	}
 	sas := ParseSAs(tags)
 	for _, sa := range sas {
 		if sa.MapQ >= o.MinMappingQuality {
-			// note that we add 1 here to put it back to 1-based coords.
-			if p.Chrom == string(sa.Chrom) {
-				p.SplitterPositions = append(p.SplitterPositions, Position{string(sa.Chrom), sa.Pos, sa.End()})
-			}
+			p.SplitterPositions = append(p.SplitterPositions, Position{Chrom: string(sa.Chrom), Start: sa.Pos, End: sa.End(), Strand: sa.Strand})
 		}
 	}
 }
