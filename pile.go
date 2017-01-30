@@ -65,6 +65,9 @@ type Pile struct {
 	OrientationPlusPlus   uint32  // Paired reads mapped in +/+ orientation
 	OrientationMinusMinus uint32  // Paired reads mapped in -/- orientation
 	OrientationMinusPlus  uint32  // Paired reads mapped in -/+ orientation
+	// count of reads where splitters were in different orientation than read.
+	// only set if SplitterVerbosity > 1
+	OrientationSplitter uint32
 	/*
 		TODO: figure out how to do this because these are excluded by ExcludeFlag.
 			   could try to calculate and it will ony be non-zero if these are not excluded.C
@@ -143,7 +146,7 @@ func (p Pile) TabString(o Options) string {
 		// string(p.RefBase), string(p.Bases), string(formatQual(p.Quals)),
 		mean(p.InsertSizeLPs),
 		mean(p.InsertSizeRMs),
-		p.OrientationPlusPlus+p.OrientationMinusPlus+p.OrientationMinusMinus,
+		p.OrientationPlusPlus+p.OrientationMinusPlus+p.OrientationMinusMinus+p.OrientationSplitter,
 		p.Discordant,
 		p.DiscordantChrom,
 		p.DiscordantChromEntropy,
@@ -214,12 +217,11 @@ func (p *Pile) Update(o Options, alns []*Align) {
 		if a.Flags&sam.Secondary == 0 {
 			if tags, ok := a.Record.Tag([]byte{'S', 'A'}); ok {
 				p.Splitters++
-				// TODO: entropy for position of splitters. should be large for good hit.
 				if bytes.Count([]byte(tags), []byte{';'}) <= 1 {
 					p.Splitters1++
 				}
 
-				p.updateSplitters(o, tags)
+				p.updateSplitters(o, tags, a.Strand() != -1)
 			}
 		}
 
@@ -282,8 +284,8 @@ func (p *Pile) Update(o Options, alns []*Align) {
 	}
 }
 
-// track the actual positions of the splitters.
-func (p *Pile) updateSplitters(o Options, tags []byte) {
+// track the actual positions of the splitters and check the orientation.
+func (p *Pile) updateSplitters(o Options, tags []byte, readStrand bool) {
 	if o.SplitterVerbosity == 0 {
 		return
 	}
@@ -291,6 +293,9 @@ func (p *Pile) updateSplitters(o Options, tags []byte) {
 	for _, sa := range sas {
 		if sa.MapQ >= o.MinMappingQuality {
 			p.SplitterPositions = append(p.SplitterPositions, Position{Chrom: string(sa.Chrom), Start: sa.Pos, End: sa.End(), Strand: sa.Strand})
+			if readStrand != sa.Strand {
+				p.OrientationSplitter++
+			}
 		}
 	}
 }

@@ -37,6 +37,7 @@ type Pile struct {
 	OrientationPlusPlus    uint32  // Paired reads mapped in +/+ orientation
 	OrientationMinusMinus  uint32  // Paired reads mapped in -/- orientation
 	OrientationMinusPlus   uint32  // Paired reads mapped in -/+ orientation
+    OrientationSplitter    uint32  // Count of +/- or -/+ splitters.
 	Discordant             uint32  // Number of reads with insert size > ConcordantCutoff
 	DiscordantChrom        uint32  // Number of reads mapping on different chroms
 	DiscordantChromEntropy float32 // high value means all discordants came from same chrom.
