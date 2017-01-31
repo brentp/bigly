@@ -183,13 +183,6 @@ func (p *Pile) Update(o Options, alns []*Align) {
 			if a.Flags&sam.ProperPair == sam.ProperPair {
 				p.ProperPairs++
 			}
-			/*
-				if a.Flags&sam.ProperPair != sam.ProperPair {
-					p.Discordant++
-				}
-			*/
-			// This gives much cleaner results for eat least 1 case than using the actual
-			// flag
 			if abs(a.Start()-a.MatePos) > o.ConcordantCutoff {
 				p.Discordant++
 			}
@@ -290,13 +283,18 @@ func (p *Pile) updateSplitters(o Options, tags []byte, readStrand bool) {
 		return
 	}
 	sas := ParseSAs(tags)
+	// if there is an orientation change, we only want to count it once.
+	var orientationChange bool
 	for _, sa := range sas {
 		if sa.MapQ >= o.MinMappingQuality {
 			p.SplitterPositions = append(p.SplitterPositions, Position{Chrom: string(sa.Chrom), Start: sa.Pos, End: sa.End(), Strand: sa.Strand})
 			if readStrand != sa.Strand {
-				p.OrientationSplitter++
+				orientationChange = true
 			}
 		}
+	}
+	if orientationChange {
+		p.OrientationSplitter++
 	}
 }
 
