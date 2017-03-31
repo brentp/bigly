@@ -1,5 +1,7 @@
 from __future__ import print_function
 import gzip
+import matplotlib
+matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from matplotlib import ticker
 import seaborn as sns
@@ -30,6 +32,7 @@ def main(argv):
     from argparse import ArgumentParser
     p = ArgumentParser()
     p.add_argument("bigly", nargs="+", help="bigly output(s)")
+    p.add_argument("-png", help="Optional PNG output filename")
     a = p.parse_args(argv)
 
 
@@ -150,7 +153,12 @@ def run(args):
 
     plt.subplots_adjust(wspace=0.05, top=0.95, bottom=0.05, right=0.94, left=0.04, hspace=0.11)
     #plt.tight_layout()
-    plt.show()
+    #print(str(args.png))
+    if (args.png != None):
+        plt.savefig(args.png)
+    else:
+	#requires X11/GUI
+        plt.show()
 
 if __name__ == "__main__":
     main(sys.argv[1:])
