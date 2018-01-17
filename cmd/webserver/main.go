@@ -20,7 +20,7 @@ import (
 	"github.com/brentp/bigly"
 	"github.com/brentp/faidx"
 	chartjs "github.com/brentp/go-chartjs"
-	"github.com/brentp/goleft/covmed"
+	"github.com/brentp/goleft/covstats"
 	"github.com/brentp/xopen"
 )
 
@@ -44,7 +44,18 @@ type cliarg struct {
 	// maps from sample id to bam path.
 	paths map[string]string `arg:"-"`
 
-	bamStats *covmed.Sizes `arg:"-"`
+	bamStats *covstats.Stats `arg:"-"`
+}
+
+func mean(arr []int32) int {
+	if len(arr) == 0 {
+		return 0
+	}
+	var s float64
+	for _, a := range arr {
+		s += float64(a)
+	}
+	return int(0.5 + s/float64(len(arr)))
 }
 
 // satisfy the required interface with this struct and methods.
@@ -216,7 +227,7 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	bamPath := cli.paths[name]
 
-	it := bigly.Up(bamPath, cli.Options, bigly.Position{chrom, start, end}, cli.ref)
+	it := bigly.Up(bamPath, cli.Options, bigly.Position{Chrom: chrom, Start: start, End: end}, cli.ref)
 	tf := tfill{Depths: xy{}, Splitters: xy{}, Inserts: xy{}, Softs: xy{}}
 	tf.Inserts.x = append(tf.Inserts.x, float64(start))
 	tf.Inserts.y = append(tf.Inserts.y, math.NaN())
@@ -251,7 +262,8 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if p.Splitters > 1 {
-			m, c := bigly.Mode(p.SplitterPositions)
+			posns := getPositions(p.SplitterPositions)
+			m, c := bigly.Mode(posns)
 			if c > 1 && m+100 > start && m-100 < end {
 				if _, ok := splits[m]; !ok {
 					splits[m] = 0
@@ -260,7 +272,7 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		// we take the max of left and right as it gives a cleaner signal than mean.
-		in := fmax(p.MeanInsertSizeLP, p.MeanInsertSizeRM)
+		in := fmax(uint32(mean(p.InsertSizeLPs)), uint32(mean(p.InsertSizeRMs)))
 		last := tf.Inserts.y[len(tf.Inserts.y)-1]
 		if last == 0 || math.IsNaN(last) {
 			tf.Inserts.y = append(tf.Inserts.y, math.NaN())
@@ -312,6 +324,14 @@ func (cli *cliarg) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Println(err)
 	}
+}
+
+func getPositions(ps []bigly.Position) []int {
+	m := make([]int, 0, 2*len(ps))
+	for _, p := range ps {
+		m = append(m, p.Start, p.End)
+	}
+	return m
 }
 
 func writeChart(w io.Writer, tf tfill, start, end int) error {
