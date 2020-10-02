@@ -20,23 +20,28 @@ type BamAt struct {
 
 // New returns a BamAt from the given path to the indexed bam
 func New(path string) (*BamAt, error) {
-	f, err := os.Open(path + ".bai")
-	if err != nil && len(path) > 4 {
-		f, err = os.Open(path[:len(path)-4] + ".bai")
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	idx, err := bam.ReadIndex(bufio.NewReader(f))
-	if err != nil {
-		return nil, err
-	}
-	bamat := &BamAt{idx: idx}
+	bamat := &BamAt{}
+	if !(path == "" || path == "-" || path == "stdin") {
 
-	bamat.fh, err = os.Open(path)
-	if err != nil {
-		return nil, err
+		f, err := os.Open(path + ".bai")
+		if err != nil && len(path) > 4 {
+			f, err = os.Open(path[:len(path)-4] + ".bai")
+		}
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		idx, err := bam.ReadIndex(bufio.NewReader(f))
+		if err != nil {
+			return nil, err
+		}
+		bamat.idx = idx
+		bamat.fh, err = os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		bamat.fh = os.Stdin
 	}
 
 	br, err := bam.NewReader(bamat.fh, 2)
@@ -55,6 +60,9 @@ func New(path string) (*BamAt, error) {
 
 // Query the BamAt with 0-base half-open interval.
 func (b *BamAt) Query(chrom string, start int, end int) (*bam.Iterator, error) {
+	if chrom == "" { // stdin
+		return bam.NewIterator(b.Reader, nil)
+	}
 	ref := b.Refs[chrom]
 	if end <= 0 {
 		end = ref.Len() - 1

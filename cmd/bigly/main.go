@@ -22,7 +22,7 @@ type cliarg struct {
 }
 
 func (c cliarg) Version() string {
-	return "bigly 0.3.0"
+	return "bigly 0.3.1"
 }
 
 func main() {
@@ -47,22 +47,25 @@ func main() {
 	stdout := bufio.NewWriter(os.Stdout)
 	defer stdout.Flush()
 
-	chromse := strings.Split(cli.Region, ":")
+	var chromse []string = []string{"", ""}
 	var start, end int
-	if len(chromse) > 1 {
-		var err error
-		se := strings.Split(chromse[1], "-")
+	if cli.Region != "NA" {
+		chromse = strings.Split(cli.Region, ":")
+		if len(chromse) > 1 {
+			var err error
+			se := strings.Split(chromse[1], "-")
 
-		start, err = strconv.Atoi(se[0])
-		if err != nil {
-			log.Fatal(err)
+			start, err = strconv.Atoi(se[0])
+			if err != nil {
+				log.Fatal(err)
+			}
+			end, err = strconv.Atoi(se[1])
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			start = 1
 		}
-		end, err = strconv.Atoi(se[1])
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		start = 1
 	}
 	var ref *faidx.Faidx
 	if cli.Reference != "" {

@@ -1,8 +1,11 @@
 package bigly
 
 import (
+	"fmt"
 	"io"
 	"log"
+	"math"
+	"os"
 	"strconv"
 
 	"github.com/biogo/hts/bam"
@@ -48,7 +51,10 @@ func (p Position) String() string {
 
 // AtUp performs the pileup given a BamAt object.
 func AtUp(b *bamat.BamAt, opts Options, pos Position, fai *faidx.Faidx) *Iterator {
-	if pos.End <= 0 {
+	if pos.End < 0 && pos.Start < 0 {
+		pos.Start = 0
+		pos.End = int(math.MaxUint32)
+	} else if pos.End <= 0 {
 		pos.End = b.Refs[pos.Chrom].Len() - 1
 	}
 	bit, err := b.Query(pos.Chrom, pos.Start, pos.End)
@@ -62,6 +68,7 @@ func AtUp(b *bamat.BamAt, opts Options, pos Position, fai *faidx.Faidx) *Iterato
 
 	// prime the cache and potentially advance it to the start of the first read.
 	for bit.Next() {
+		fmt.Fprintln(os.Stderr, "next")
 		rec := it.bit.Record()
 		if !passes(rec, opts) {
 			continue
